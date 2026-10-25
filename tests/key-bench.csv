@@ -1,0 +1,75 @@
+﻿# Banc de test de la détection de tonalité (TaskbarVisu.exe --headless --bench rapport.txt tests\key-bench.csv <dossier des samples>)
+# source ; tonalités acceptées (|) ; mode ambigu attendu (oui / non / *) ; justification
+#
+# Samples réels : réponses justifiées par les notes réellement présentes (chroma brut), recoupées avec Tunebat et Auto-Key 2.
+berserk.wav ; B|Bm ; oui ; quinte B-F# sans tierce (D et D# quasi absents), désaccordé de -46 cents — Auto-Key B, Tunebat Bm
+Bayonetta - OST - Enzo and Drive 2.wav ; C#m|D♭ ; oui ; tierces mineure (E) et majeure (F) à égalité — Auto-Key Db, Tunebat C#m
+baeonetta (sample).wav ; Em|E ; * ; quinte E-B dominante, tierce G à peine plus forte que G# — Tunebat Em, Auto-Key Bm (D/G/A trop faibles)
+[SAMPLE] heard this at a target.wav ; E♭m ; non ; F présent et E absent : exclut Si majeur — Tunebat D#m
+[SAMPLE] about tonight 2.wav ; G#m ; non ; D, G, A absents : exclut Si mineur — Tunebat G#m
+[CHOP] nostalgic.wav ; E♭m ; * ; E♭ G♭ A♭ B♭ F dominants — Tunebat D#m, Auto-Key Bbm
+#
+# Morceaux entiers (MP3, non fournis) : la tonalité de référence doit être affichée au moins 70 % du temps où une tonalité
+# l'est, avec la mémoire par défaut de l'accordeur (30 s). Références : Tunebat, Hooktheory, Beatport, partitions.
+Justice - Flower In A Hurricane (ft Tame Impala, SZA, King Gizzard & the Lizard Wizard) [from GTAVI]-(132k).mp3 ; C#m ; * ; Hooktheory, Ultimate Guitar, Beatport (D♭ minor), Nonstop2k 12A ; la basse insiste sur Si (VII)
+PinkPantheress - Stateside + Zara Larsson (Official Audio)-(132k).mp3 ; B♭m ; * ; Tunebat A♯ minor 3A, Hooktheory, Mixgraph ; pop très chantée
+PinkPantheress - Capable of Love-(136k).mp3 ; G ; * ; Tunebat G major 9B, Gemtracks
+Oklou - take me by the hand ft. Bladee (Official Video)-(134k).mp3 ; A|F#m ; * ; Hooktheory A major (refrain vi–V–I–ii–iii, très centré sur F♯m)
+Watcher-(143k).mp3 ; A♭ ; * ; Tunebat A♭ major 4B, partition Musicnotes ; ambient modal (passages en D♭, E♭, Fm)
+PinkPantheress - Tonight (Official Video)-(127k).mp3 ; Fm ; * ; Tunebat F minor 4A ; notes et basse sur Fa tout le morceau (BPM Supreme : Cm)
+Sabrina Carpenter - House Tour (Official Lyric Video)-(125k).mp3 ; F#|D♭ ; * ; Tunebat F♯ major 2B ; Hooktheory C♯ mixolydien (notes et basse sur C♯)
+Dom Corleo - going green (Official Music Video)-(137k).mp3 ; G ; * ; Tunebat G major ; gamme de Ré majeur (C♯, pas de Do) : Sol lydien, basse F♯/G
+Oklou - plague dogs-(137k).mp3 ; G#m ; * ; Tunebat et Songbpm G♯ minor 1A (Songdata : Dm) ; centre qui bouge (G♯m/B, D♯m, F♯)
+#
+# Morceaux synthétiques (synth:tonalité[:variante][@désaccord en cents][~bruit]) : réponse connue par construction.
+synth:C ; C ; non ; I V vi IV
+synth:G ; G ; non ; I V vi IV
+synth:E♭ ; E♭ ; non ; I V vi IV
+synth:F# ; F# ; non ; I V vi IV
+synth:B♭ ; B♭ ; non ; I V vi IV
+synth:Am ; Am ; non ; i VI VII i
+synth:Em ; Em ; non ; i VI VII i
+synth:Cm ; Cm ; non ; i VI VII i
+synth:F#m ; F#m ; non ; i VI VII i
+synth:B♭m ; B♭m ; non ; i VI VII i
+synth:Dm:n ; Dm ; non ; mineur naturel i iv v i
+synth:Am:h ; Am ; non ; mineur harmonique i iv V i
+synth:G:b ; G ; non ; I IV I V
+synth:E@-32 ; E ; non ; accordé en 432 Hz environ
+synth:Gm@35 ; Gm ; non ; désaccordé de +35 cents
+synth:C#m~0.3 ; C#m ; * ; bruit fort et batterie très présente
+synth:A♭~0.3 ; A♭ ; * ; bruit fort et batterie très présente
+#
+#
+# Sons non musicaux : aucune tonalité ne doit jamais s'afficher (réponse « -- »). Enchaînements : partie=durée>partie=durée.
+voice:discord ; -- ; * ; conversation Discord : phrases parlées entre de longs silences
+voice:talk ; -- ; * ; bavardage continu (hauteur de voix qui glisse)
+voice:cough ; -- ; * ; toux toutes les 3 s
+voice:ding ; -- ; * ; son de notification court toutes les 4 s
+synth:C=10>silence=12>synth:F#m=16 ; F#m ; * ; après 12 s de silence, l'ancienne tonalité est oubliée (mémoire 60 s)
+synth:Am:h=12>voice:talk=10>synth:Am:h=8 ; Am ; * ; quelqu'un parle pendant une pause : la tonalité revient ensuite
+#
+# Notes d'un accord tenu (piano roll) : liste exacte des notes allumées (à moins de 20 dB de la plus forte), stable 80 % du temps.
+# chord:fondamentale:qualité:octave[:i1|:i2][:b][:saw] ou notes:C2,C4,D#4[:saw] ; timbre de piano par défaut, octaves scientifiques (Do4 = 261,6 Hz).
+notes:C2,C4,D#4,G4,C5,D5 ; C2 C4 D#4 G4 C5 D5 ; * ; cas signalé (FL Studio : C3 C5 D#5 G5 C6 D6) : Do mineur add9, octave doublée et basse
+notes:C2,C4,D#4,G4,D5:saw ; C2 C4 D#4 G4 D5 ; * ; même accord sans l'octave doublée, synthé dents de scie (Ré5 = ×9 de Do2)
+notes:A3 ; A3 ; * ; note seule : aucune harmonique ne doit s'allumer
+notes:A2:saw ; A2 ; * ; note grave très riche en harmoniques
+chord:C:MIN:5 ; C5 D#5 G5 ; * ; Do mineur (détecté G# MAJ7 par le mode accord en v0.6)
+chord:C:MAJ:4 ; C4 E4 G4 ; * ; triade majeure
+chord:A:MIN:3 ; A3 C4 E4 ; * ; registre grave
+chord:A:MIN:4:b ; A2 A4 C5 E5 ; * ; avec basse à la fondamentale
+chord:C:MIN:4:i1 ; D#4 G4 C5 ; * ; premier renversement
+chord:G:MAJ:4:i2 ; D5 G5 B5 ; * ; second renversement
+chord:G:7:4 ; G4 B4 D5 F5 ; * ; septième de dominante
+chord:F:MAJ7:4 ; F4 A4 C5 E5 ; * ; septième majeure
+chord:D:MIN7:4 ; D4 F4 A4 C5 ; * ; septième mineure
+chord:E:SUS4:4 ; E4 A4 B4 ; * ; suspendu
+chord:B:DIM:4 ; B4 D5 F5 ; * ; diminué
+chord:F#:MIN:4 ; F#4 A4 C#5 ; * ; tonalité à dièses
+chord:E:5:2:saw ; E2 B2 ; * ; power chord grave, synthé dents de scie
+chord:C:MIN:4:saw ; C4 D#4 G4 ; * ; synthé dents de scie (harmoniques fortes)
+chord:A#:MAJ:3:saw ; A#3 D4 F4 ; * ; synthé grave
+chord:E:MIN:3:b:saw ; E1 E3 G3 B3 ; * ; basse dents de scie très grave (41 Hz)
+chord:G:MAJ:3:b ; G1 G3 B3 D4 ; * ; basse + accord grave
+chord:D:MIN:4:b:saw ; D2 D4 F4 A4 ; * ; mineur avec basse riche

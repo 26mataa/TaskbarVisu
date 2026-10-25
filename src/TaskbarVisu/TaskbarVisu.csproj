@@ -1,0 +1,43 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <AssemblyName>TaskbarVisu</AssemblyName>
+    <RootNamespace>TaskbarVisu</RootNamespace>
+    <Version>0.8.3</Version>
+    <Product>TaskbarVisu</Product>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Assets\TaskbarVisu.ico</ApplicationIcon>
+    <!-- ThemeMode (Fluent) est encore marqué expérimental dans WPF. -->
+    <!-- WFO0003 : le manifeste DPI est voulu (application WPF, WinForms ne sert qu'à l'icône de notification). -->
+    <NoWarn>$(NoWarn);WPF0001;WFO0003</NoWarn>
+    <!-- Empreinte mémoire / CPU réduite pour les petites configs. -->
+    <ServerGarbageCollection>false</ServerGarbageCollection>
+    <ConcurrentGarbageCollection>false</ConcurrentGarbageCollection>
+    <TieredPGO>true</TieredPGO>
+    <SatelliteResourceLanguages>fr</SatelliteResourceLanguages>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- WPF + WinForms : on évite les ambiguïtés de types (Application, Color, ...). -->
+    <Using Remove="System.Windows.Forms" />
+    <Using Remove="System.Drawing" />
+    <Using Include="System.IO" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="Assets\TaskbarVisu.ico" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="NAudio.Wasapi" Version="2.2.1" />
+    <PackageReference Include="SkiaSharp" Version="2.88.9" />
+  </ItemGroup>
+
+</Project>

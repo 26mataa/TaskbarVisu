@@ -1,0 +1,273 @@
+using Microsoft.Win32;
+using SkiaSharp;
+using TaskbarVisu.Core;
+
+namespace TaskbarVisu.Rendering;
+
+/// <summary>
+/// Couleurs du style « labo » : une encre (tracés, textes), un accent (aiguille, repères),
+/// et une palette de fréquences grave → aigu. Un module peut avoir son propre thème
+/// (autre palette ou couleur unie) dérivé du thème général.
+/// </summary>
+internal sealed class Theme
+{
+    private static int _versionCounter;
+
+    /// <summary>Unique pour chaque thème construit : sert de clé aux caches de rendu.</summary>
+    public int Version { get; } = Interlocked.Increment(ref _versionCounter);
+    public bool Light { get; private init; }
+
+    /// <summary>Couleur des tracés et des textes.</summary>
+    public SKColor Ink { get; private set; }
+    public SKColor InkDim { get; private set; }
+    public SKColor Grid { get; private set; }
+    public SKColor GridFaint { get; private set; }
+    public SKColor Warn { get; private init; }
+    public SKColor Hot { get; private init; }
+
+    /// <summary>Case de lecture « inversée » (fond encre, texte sombre), façon afficheur.</summary>
+    public SKColor ReadoutBack { get; private set; }
+    public SKColor ReadoutText { get; private set; }
+
+    /// <summary>Case de lecture discrète posée sur un tracé.</summary>
+    public SKColor OverlayBack { get; private init; }
+
+    /// <summary>Palette qui tourne dans le temps (arc-en-ciel animé).</summary>
+    public bool Animated { get; private set; }
+
+    /// <summary>Décalage de l'animation, de 0 à 1 (mis à jour à chaque image par le rendu).</summary>
+    public float Phase { get; set; }
+
+    private (float T, SKColor C)[] _palette = Array.Empty<(float, SKColor)>();
+    private readonly SKColor[] _spectral = new SKColor[256];
+    private AppSettings _settings = null!;
+
+    private static readonly SKColor DefaultInkDark = new(0xD4, 0xDC, 0xFF);
+    private static readonly SKColor DefaultInkLight = new(0x1D, 0x24, 0x33);
+
+    public static Theme Build(AppSettings s) => Build(s, null, null);
+
+    /// <param name="palette">Palette propre à un module (sinon celle des réglages).</param>
+    /// <param name="solid">Couleur unie propre à un module : palette monochrome de cette teinte.</param>
+    public static Theme Build(AppSettings s, PaletteChoice? palette, SKColor? solid)
+    {
+        bool light = s.Theme switch
+        {
+            ThemeChoice.Light => true,
+            ThemeChoice.Dark => false,
+            _ => SystemUsesLightTheme(),
+        };
+
+        var theme = new Theme
+        {
+            Light = light,
+            Warn = light ? new SKColor(0xC7, 0x78, 0x00) : new SKColor(0xFF, 0xB0, 0x20),
+            Hot = light ? new SKColor(0xD9, 0x20, 0x20) : new SKColor(0xFF, 0x3B, 0x30),
+            OverlayBack = light ? new SKColor(0xF4, 0xF4, 0xF4, 0xEC) : new SKColor(0x05, 0x05, 0x08, 0xE8),
+        };
+        theme._settings = s;
+
+        // L'encre « par défaut » sert aussi de base aux palettes monochromes.
+        var baseInk = s.ColorMode switch
+        {
+            ColorChoice.Accent => AccentColor(light) ?? (light ? DefaultInkLight : DefaultInkDark),
+            ColorChoice.Custom => Parse(s.CustomColor) ?? (light ? DefaultInkLight : DefaultInkDark),
+            _ => light ? DefaultInkLight : DefaultInkDark,
+        };
+        theme.SetInk(baseInk);
+
+        var choice = palette ?? s.Palette;
+        theme.Animated = solid is null && choice == PaletteChoice.RainbowAnimated;
+        theme._palette = solid is { } c ? MonoStops(c) : theme.Stops(choice);
+        for (int i = 0; i < 256; i++)
+        {
+            float t = theme.Animated ? i / 256f : 0.22f + 0.78f * i / 255f;
+            theme._spectral[i] = Sample(theme._palette, t);
+        }
+
+        // Encre teintée par la palette (ou par la couleur unie du module).
+        if (s.ColorMode == ColorChoice.Palette || solid is not null)
+            theme.SetInk(Mix(Sample(theme._palette, 0.9f), light ? SKColors.Black : SKColors.White, light ? 0.35f : 0.4f));
+
+        // La case de lecture prend la couleur haute de la palette : cohérente avec les données.
+        theme.ReadoutBack = theme.Animated ? theme.Ink : theme.Spectral(0.92f);
+        var rb = theme.ReadoutBack;
+        float luminance = (0.2126f * rb.Red + 0.7152f * rb.Green + 0.0722f * rb.Blue) / 255f;
+        theme.ReadoutText = luminance > 0.5f ? new SKColor(0x07, 0x08, 0x0C) : SKColors.White;
+        return theme;
+    }
+
+    private void SetInk(SKColor ink)
+    {
+        Ink = ink;
+        InkDim = ink.WithAlpha(0x99);
+        Grid = ink.WithAlpha(0x2C);
+        GridFaint = ink.WithAlpha(0x16);
+        ReadoutBack = ink.WithAlpha(0xF0);
+    }
+
+    /// <summary>Couleur de la palette pour une position grave (0) → aigu (1), toujours bien visible.</summary>
+    public SKColor Spectral(float t)
+    {
+        t = Math.Clamp(t, 0, 1);
+        if (Animated)
+        {
+            float u = (t * 0.85f + Phase) % 1f;
+            return _spectral[(int)(u * 255.999f)];
+        }
+        return _spectral[(int)(t * 255)];
+    }
+
+    /// <summary>
+    /// Table de 256 couleurs BGRA prémultipliées pour une échelle d'intensité (spectrogramme, panorama) ;
+    /// les faibles intensités sont transparentes.
+    /// </summary>
+    public uint[] BuildLut()
+    {
+        var lut = new uint[256];
+        for (int i = 0; i < 256; i++)
+        {
+            float t = i / 255f;
+            var c = Animated ? Spectral(t) : Sample(_palette, t);
+            float a = t < 0.02f ? 0 : SmoothStep(0.02f, 0.45f, t);
+            uint alpha = (uint)(a * 255 + 0.5f);
+            uint r = (uint)(c.Red * a + 0.5f), g = (uint)(c.Green * a + 0.5f), b = (uint)(c.Blue * a + 0.5f);
+            lut[i] = alpha << 24 | r << 16 | g << 8 | b;
+        }
+        return lut;
+    }
+
+    private (float, SKColor)[] Stops(PaletteChoice palette) => palette switch
+    {
+        PaletteChoice.Brasier => new[]
+        {
+            (0f, C(0x2A, 0x05, 0x05)), (0.3f, C(0x8E, 0x10, 0x10)), (0.55f, C(0xE3, 0x34, 0x1A)),
+            (0.75f, C(0xFF, 0x7A, 0x1A)), (0.9f, C(0xFF, 0xC1, 0x4D)), (1f, C(0xFF, 0xF4, 0xD1)),
+        },
+        PaletteChoice.Spectral => new[]
+        {
+            (0f, C(0x30, 0x12, 0x3B)), (0.15f, C(0x46, 0x62, 0xD7)), (0.3f, C(0x36, 0xAA, 0xF9)),
+            (0.45f, C(0x1A, 0xE4, 0xB6)), (0.6f, C(0x72, 0xFE, 0x5E)), (0.75f, C(0xC8, 0xEF, 0x34)),
+            (0.87f, C(0xFA, 0xBA, 0x39)), (1f, C(0xF0, 0x4E, 0x1A)),
+        },
+        PaletteChoice.Phosphore => new[]
+        {
+            (0f, C(0x00, 0x1A, 0x08)), (0.4f, C(0x00, 0x87, 0x2B)), (0.75f, C(0x39, 0xFF, 0x14)), (1f, C(0xD9, 0xFF, 0xD0)),
+        },
+        PaletteChoice.Glace => new[]
+        {
+            (0f, C(0x0B, 0x1F, 0x4D)), (0.35f, C(0x1D, 0x4E, 0xD8)), (0.65f, C(0x38, 0xBD, 0xF8)),
+            (0.9f, C(0xCF, 0xF4, 0xFF)), (1f, C(0xFF, 0xFF, 0xFF)),
+        },
+        PaletteChoice.Rainbow => new[]
+        {
+            (0f, C(0x7A, 0x00, 0x1E)), (0.15f, C(0xFF, 0x17, 0x44)), (0.3f, C(0xFF, 0x91, 0x00)), (0.45f, C(0xFF, 0xEA, 0x00)),
+            (0.6f, C(0x00, 0xE6, 0x76)), (0.75f, C(0x00, 0xE5, 0xFF)), (0.88f, C(0x29, 0x79, 0xFF)), (1f, C(0xD5, 0x00, 0xF9)),
+        },
+        PaletteChoice.RainbowAnimated => new[]
+        {
+            // Cercle chromatique complet : la fin rejoint le début pour une rotation sans saut.
+            (0f, C(0xFF, 0x17, 0x44)), (1 / 6f, C(0xFF, 0xB3, 0x00)), (2 / 6f, C(0xC6, 0xFF, 0x00)), (3 / 6f, C(0x00, 0xE6, 0x76)),
+            (4 / 6f, C(0x00, 0xB0, 0xFF)), (5 / 6f, C(0xAA, 0x00, 0xFF)), (1f, C(0xFF, 0x17, 0x44)),
+        },
+        PaletteChoice.Synthwave => new[]
+        {
+            (0f, C(0x1A, 0x0B, 0x3D)), (0.3f, C(0x3D, 0x1A, 0x78)), (0.55f, C(0xB5, 0x17, 0x9E)),
+            (0.75f, C(0xF7, 0x25, 0x85)), (0.9f, C(0x4C, 0xC9, 0xF0)), (1f, C(0xCF, 0xFA, 0xFE)),
+        },
+        PaletteChoice.Vaporwave => new[]
+        {
+            (0f, C(0x1B, 0x10, 0x35)), (0.3f, C(0x5B, 0x3E, 0x96)), (0.5f, C(0xFF, 0x71, 0xCE)),
+            (0.7f, C(0xB9, 0x67, 0xFF)), (0.85f, C(0x01, 0xCD, 0xFE)), (1f, C(0x05, 0xFF, 0xA1)),
+        },
+        PaletteChoice.Toxic => new[]
+        {
+            (0f, C(0x0B, 0x1A, 0x00)), (0.35f, C(0x2E, 0x6B, 0x00)), (0.6f, C(0x7C, 0xFF, 0x00)),
+            (0.85f, C(0xE5, 0xFF, 0x00)), (1f, C(0xFF, 0xFF, 0xB0)),
+        },
+        PaletteChoice.Chrome => new[]
+        {
+            (0f, C(0x1C, 0x22, 0x30)), (0.3f, C(0x4A, 0x55, 0x68)), (0.55f, C(0xA0, 0xAE, 0xC0)),
+            (0.75f, C(0xE2, 0xE8, 0xF0)), (0.9f, C(0x7D, 0xD3, 0xFC)), (1f, C(0xF0, 0xF9, 0xFF)),
+        },
+        PaletteChoice.Monochrome => MonoStops(Ink),
+        PaletteChoice.Accent => MonoStops(AccentColor(false) ?? DefaultInkDark),
+        PaletteChoice.Custom => CustomStops(),
+        _ => new[]
+        {
+            (0f, C(0x2C, 0x11, 0x5F)), (0.3f, C(0x72, 0x1F, 0x81)), (0.55f, C(0xB7, 0x37, 0x79)),
+            (0.75f, C(0xF1, 0x60, 0x5D)), (0.9f, C(0xFE, 0xAF, 0x77)), (1f, C(0xFC, 0xFD, 0xBF)),
+        },
+    };
+
+    private static (float, SKColor)[] MonoStops(SKColor c) =>
+        new[] { (0f, Scale(c, 0.2f)), (0.45f, Scale(c, 0.65f)), (0.8f, c), (1f, Mix(c, SKColors.White, 0.6f)) };
+
+    private (float, SKColor)[] CustomStops()
+    {
+        var low = Parse(_settings.PaletteLow) ?? C(0x3A, 0x0C, 0xA3);
+        var high = Parse(_settings.PaletteHigh) ?? C(0xFF, 0xD6, 0x0A);
+        return new[] { (0f, Scale(low, 0.35f)), (0.35f, low), (0.65f, Mix(low, high, 0.5f)), (0.9f, high), (1f, Mix(high, SKColors.White, 0.6f)) };
+    }
+
+    private static SKColor Sample((float T, SKColor C)[] stops, float t)
+    {
+        int s = 0;
+        while (s < stops.Length - 2 && t > stops[s + 1].T) s++;
+        var (t0, c0) = stops[s];
+        var (t1, c1) = stops[s + 1];
+        return Mix(c0, c1, Math.Clamp((t - t0) / Math.Max(1e-6f, t1 - t0), 0, 1));
+    }
+
+    /// <summary>La barre des tâches suit « SystemUsesLightTheme » (et non le thème des applications).</summary>
+    public static bool SystemUsesLightTheme() => ReadFlag("SystemUsesLightTheme");
+
+    /// <summary>Thème des applications (fenêtre de réglages).</summary>
+    public static bool AppsUseLightTheme() => ReadFlag("AppsUseLightTheme");
+
+    private static bool ReadFlag(string name)
+    {
+        try
+        {
+            return Registry.GetValue(@"HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize",
+                name, 0) is int v && v == 1;
+        }
+        catch { return false; }
+    }
+
+    /// <summary>Variante de la couleur d'accentuation adaptée au fond (claire sur fond sombre et inversement).</summary>
+    public static SKColor? AccentColor(bool lightBackground)
+    {
+        try
+        {
+            if (Registry.GetValue(@"HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Explorer\Accent",
+                    "AccentPalette", null) is byte[] { Length: >= 32 } pal)
+            {
+                // Variante « claire 1 » sur fond sombre, « foncée 1 » sur fond clair : bien saturées.
+                int i = (lightBackground ? 4 : 2) * 4;
+                return new SKColor(pal[i], pal[i + 1], pal[i + 2]);
+            }
+        }
+        catch { }
+        return null;
+    }
+
+    public static SKColor? Parse(string? hex) =>
+        hex is not null && SKColor.TryParse(hex, out var c) ? c.WithAlpha(255) : null;
+
+    public static SKColor Mix(SKColor a, SKColor b, float t) => new(
+        (byte)(a.Red + (b.Red - a.Red) * t),
+        (byte)(a.Green + (b.Green - a.Green) * t),
+        (byte)(a.Blue + (b.Blue - a.Blue) * t),
+        (byte)(a.Alpha + (b.Alpha - a.Alpha) * t));
+
+    private static SKColor C(byte r, byte g, byte b) => new(r, g, b);
+
+    private static SKColor Scale(SKColor c, float k) => new((byte)(c.Red * k), (byte)(c.Green * k), (byte)(c.Blue * k));
+
+    private static float SmoothStep(float e0, float e1, float x)
+    {
+        float t = Math.Clamp((x - e0) / (e1 - e0), 0, 1);
+        return t * t * (3 - 2 * t);
+    }
+}

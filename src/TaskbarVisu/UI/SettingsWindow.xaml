@@ -1,0 +1,88 @@
+<Window x:Class="TaskbarVisu.UI.SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="TaskbarVisu — Paramètres"
+        Width="840" Height="700" MinWidth="660" MinHeight="500"
+        WindowStartupLocation="CenterScreen"
+        Icon="/Assets/TaskbarVisu.ico">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TabControl x:Name="Tabs" Margin="12,8,12,0">
+            <TabItem x:Name="TabGeneral" Header="Général">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel x:Name="GeneralPanel" Margin="16,8,24,16" />
+                </ScrollViewer>
+            </TabItem>
+
+            <TabItem x:Name="TabAppearance" Header="Apparence">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel x:Name="AppearancePanel" Margin="16,8,24,16" />
+                </ScrollViewer>
+            </TabItem>
+
+            <TabItem x:Name="TabLayout" Header="Disposition">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="16,8,24,16">
+                        <TextBlock x:Name="LayoutIntro" TextWrapping="Wrap" Opacity="0.75" Margin="0,4,0,12"
+                                   Text="Les espaces libres à gauche et à droite des icônes de la barre des tâches sont détectés automatiquement (y compris les widgets comme FluentFlyout). Cochez les modules à afficher, glissez-les pour changer l'ordre ou le côté." />
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition />
+                                <ColumnDefinition Width="16" />
+                                <ColumnDefinition />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+
+                            <TextBlock x:Name="LeftHeader" Text="Zone gauche" FontWeight="SemiBold" Margin="0,0,0,6" />
+                            <TextBlock x:Name="RightHeader" Grid.Column="2" Text="Zone droite" FontWeight="SemiBold" Margin="0,0,0,6" />
+
+                            <ListBox x:Name="LeftList" Grid.Row="1" MinHeight="200" AllowDrop="True" />
+                            <ListBox x:Name="RightList" Grid.Row="1" Grid.Column="2" MinHeight="200" AllowDrop="True" />
+
+                            <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,8,0,0">
+                                <Button x:Name="LeftUpButton" Content="▲" ToolTip="Monter" Width="44" Margin="0,0,6,0" Click="OnLeftUp" />
+                                <Button x:Name="LeftDownButton" Content="▼" ToolTip="Descendre" Width="44" Margin="0,0,6,0" Click="OnLeftDown" />
+                                <Button x:Name="MoveRightButton" Content="Vers la droite ▶" Click="OnMoveToRight" />
+                            </StackPanel>
+                            <StackPanel Grid.Row="2" Grid.Column="2" Orientation="Horizontal" Margin="0,8,0,0">
+                                <Button x:Name="RightUpButton" Content="▲" ToolTip="Monter" Width="44" Margin="0,0,6,0" Click="OnRightUp" />
+                                <Button x:Name="RightDownButton" Content="▼" ToolTip="Descendre" Width="44" Margin="0,0,6,0" Click="OnRightDown" />
+                                <Button x:Name="MoveLeftButton" Content="◀ Vers la gauche" Click="OnMoveToLeft" />
+                            </StackPanel>
+                        </Grid>
+
+                        <StackPanel x:Name="SelectionPanel" Margin="0,16,0,0" />
+                        <StackPanel x:Name="LayoutPanel" />
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <TabItem x:Name="TabModules" Header="Modules">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel x:Name="ModulesPanel" Margin="16,8,24,16" />
+                </ScrollViewer>
+            </TabItem>
+        </TabControl>
+
+        <Grid Grid.Row="1" Margin="16,10,16,12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBlock x:Name="StatusText" VerticalAlignment="Center" Opacity="0.7"
+                       TextTrimming="CharacterEllipsis" Margin="0,0,12,0" />
+            <StackPanel Grid.Column="1" Orientation="Horizontal">
+                <Button x:Name="ResetAllButton" Content="Tout réinitialiser" Margin="0,0,8,0" Click="OnResetAll" />
+                <Button x:Name="CloseButton" Content="Fermer" MinWidth="90" Click="OnCloseClick" />
+            </StackPanel>
+        </Grid>
+    </Grid>
+</Window>
