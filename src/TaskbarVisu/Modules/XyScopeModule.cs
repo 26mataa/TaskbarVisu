@@ -20,6 +20,9 @@ internal sealed class XyScopeModule : VisualizerModule
     private readonly SKPaint _grid = new() { IsAntialias = false };
     private readonly LayerCache _graticule = new();
     private readonly ScopeDrawer _drawer = new();
+    // Par échantillon : écart dans le nuage, position à l'écran, éclat et lueur (que les dessins modifient).
+    private float[] _sx = Array.Empty<float>(), _sy = Array.Empty<float>(), _fx = Array.Empty<float>(), _fy = Array.Empty<float>();
+    private float[] _weight = Array.Empty<float>(), _glow = Array.Empty<float>();
 
     public XyScopeModule() : base("xyscope") { }
 
@@ -45,8 +48,10 @@ internal sealed class XyScopeModule : VisualizerModule
     {
         if (_bitmap is null || _lut.Length == 0) return;
 
-        // Rémanence : chaque point s'éteint exponentiellement.
-        float decay = (float)Math.Exp(-dt / Math.Max(0.02, Opt("persistence")));
+        // Rémanence : chaque point s'éteint exponentiellement (plus lentement pendant une explosion).
+        int drawings = OptI("drawings");
+        double persistence = Math.Max(0.02, Opt("persistence")) * (1 + (drawings > 0 ? _drawer.Afterglow : 0));
+        float decay = (float)Math.Exp(-dt / persistence);
         bool lit = false;
         for (int i = 0; i < _phosphor.Length; i++)
         {
@@ -61,38 +66,58 @@ internal sealed class XyScopeModule : VisualizerModule
         if (peak * _gain > 1) _gain = 0.95f / peak;
         _gain = Math.Clamp(_gain, 0.5f, 400f);
 
+        // Place de chaque échantillon dans le nuage du son.
         var (x0, w) = PlotArea();
-        int drawings = OptI("drawings");
-        if (drawings > 0)
-        {
-            _drawer.Update(audio, dt, drawings == 2, OptF("wobble") / 100f, Flag("spin"), x0, w, Height);
-            lit |= _drawer.Active;
-        }
-        // Dessin en cours : chaque point glisse de sa place dans le nuage vers sa place sur le dessin, que le son fait trembler.
-        float morph = drawings > 0 ? _drawer.Morph : 0, jitter = _drawer.Jitter;
-        var toX = _drawer.X;
-        var toY = _drawer.Y;
-
         bool gonio = OptI("mode") == 0;
         float hx = (w - 1) / 2f, hy = (Height - 1) / 2f;
         int n = audio.Count;
-        float hit = Math.Clamp(1800f / Math.Max(1, n), 0.08f, 1f) * 0.35f;
+        if (_fx.Length < n)
+        {
+            _sx = new float[n];
+            _sy = new float[n];
+            _fx = new float[n];
+            _fy = new float[n];
+            _weight = new float[n];
+            _glow = new float[n];
+        }
         for (int i = 0; i < n; i++)
         {
             float l = audio.Left[i] * _gain, r = audio.Right[i] * _gain;
-            float sx, sy;
-            if (gonio) (sx, sy) = ((r - l) * 0.7071f, (l + r) * 0.7071f);
-            else (sx, sy) = (l, r);
-            float fx = x0 + hx + sx * hx, fy = hy - sy * hy;
-            if (morph > 0)
-            {
-                fx += (toX[i] + sx * jitter - fx) * morph;
-                fy += (toY[i] - sy * jitter - fy) * morph;
-            }
-            int px = (int)MathF.Round(fx), py = (int)MathF.Round(fy);
+            var (sx, sy) = gonio ? ((r - l) * 0.7071f, (l + r) * 0.7071f) : (l, r);
+            _sx[i] = sx;
+            _sy[i] = sy;
+            _fx[i] = x0 + hx + sx * hx;
+            _fy[i] = hy - sy * hy;
+            _weight[i] = 1;
+            _glow[i] = 0;
+        }
+
+        // Dessins : les mêmes échantillons quittent le nuage pour tracer le dessin, ses étincelles et ses ondes de choc.
+        if (drawings > 0)
+        {
+            _drawer.Apply(audio, dt, drawings == 2, Flag("fireworks"), OptF("wobble") / 100f,
+                _sx, _sy, _fx, _fy, _weight, _glow, x0, w, Height);
+            lit |= _drawer.Active;
+        }
+
+        float hit = Math.Clamp(1800f / Math.Max(1, n), 0.08f, 1f) * 0.35f;
+        for (int i = 0; i < n; i++)
+        {
+            if (_weight[i] <= 0) continue;
+            int px = (int)MathF.Round(_fx[i]), py = (int)MathF.Round(_fy[i]);
             if ((uint)px >= (uint)Width || (uint)py >= (uint)Height) continue;
-            ref float cell = ref _phosphor[py * Width + px];
-            cell = Math.Min(1.5f, cell + hit);
+            int at = py * Width + px;
+            float dose = hit * _weight[i];
+            _phosphor[at] = Math.Min(1.5f, _phosphor[at] + dose);
+            if (_glow[i] > 0)
+            {
+                // Lueur du phosphore autour du trait.
+                float halo = dose * _glow[i];
+                if (px > 0) _phosphor[at - 1] = Math.Min(1.5f, _phosphor[at - 1] + halo);
+                if (px < Width - 1) _phosphor[at + 1] = Math.Min(1.5f, _phosphor[at + 1] + halo);
+                if (py > 0) _phosphor[at - Width] = Math.Min(1.5f, _phosphor[at - Width] + halo);
+                if (py < Height - 1) _phosphor[at + Width] = Math.Min(1.5f, _phosphor[at + Width] + halo);
+            }
             lit = true;
         }
         _lit = lit;

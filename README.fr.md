@@ -22,7 +22,7 @@ posés dans les espaces libres à gauche et à droite des icônes, sans cadre.
 | **Historique de sonie** | Courbe LUFS sur 15 s à 5 min (barres LED ou courbe), ligne de cible |
 | **Accordeur** | 2 modes : note + justesse (±50 cents), tonalité (gamme) avec confiance et, pour un morceau modal, sa note centrale (« ◆F MIX ») ; mini-piano LED, notation C D E, Do Ré Mi ou Camelot ; en option, les tonalités précédentes du morceau (« <C <Aᵐ ») |
 | **Piano roll** | Notes réellement entendues, octave comprise, justes à quelques cents (analyse dédiée en deux résolutions), sur un clavier de 3 à 6 octaves ; leur historique défile au-dessus (couleur selon la hauteur ou l'intensité, clavier en bas ou en haut) |
-| **Oscilloscope XY** | Goniomètre (milieu / côtés) ou Lissajous (gauche / droite) tracé en phosphore qui s'éteint lentement, réticule gradué ; par moments, le tracé lui-même se change en dessin façon « musique d'oscilloscope » (étoile, cœur, petit personnage…), à un moment et un endroit au hasard, tremble avec le son puis redevient le son |
+| **Oscilloscope XY** | Goniomètre (milieu / côtés) ou Lissajous (gauche / droite) tracé en phosphore qui s'éteint lentement, réticule gradué ; par moments, le faisceau écrit un dessin façon « musique d'oscilloscope » (étoile, cœur, petit personnage…) qui suit la stéréo et tremble avec le son ; quand la stéréo s'emballe, les dessins se déforment, envahissent le module et explosent en feu d'artifice |
 | **Données brutes** | Les échantillons tels que la carte son les voit : lignes hexadécimales qui défilent ou matrice de bits. Purement expérimental |
 
 Disposition par défaut : niveaux, spectrogramme et spectre à gauche ; imageur, accordeur et forme d'onde

@@ -30,7 +30,7 @@ drawn straight into the empty space on each side of your icons, in a dot-matrix 
 | **Waveform** | mirror, envelope or triggered oscilloscope |
 | **Loudness history** | LUFS over 15 s to 5 min against your target |
 | **Piano roll** | the notes actually played, octave included, on a 3–6 octave keyboard with scrolling history: dedicated two-resolution FFT, peaks accurate to a few cents, harmonics sieved out |
-| **XY oscilloscope** | goniometer or Lissajous drawn in phosphor that fades like a CRT, and now and then the trace itself turns into an "oscilloscope music" drawing (star, heart, little character…) at a random moment and place, shaken by the sound, before turning back into the sound |
+| **XY oscilloscope** | goniometer or Lissajous drawn in phosphor that fades like a CRT, and now and then the beam writes an "oscilloscope music" drawing (star, heart, little character…) that follows the stereo image and shakes with the sound; when the stereo goes wild, the drawings warp, fill the module and burst into fireworks |
 | **Raw data** | the samples as your sound card sees them, in scrolling hex or a bit matrix. Purely experimental |
 
 The *Layout* page shows your taskbar in miniature, modules to scale: click one to set its width, drag it

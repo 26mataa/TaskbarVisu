@@ -3,10 +3,12 @@ using TaskbarVisu.Dsp;
 namespace TaskbarVisu.Modules;
 
 /// <summary>
-/// Dessins d'oscilloscope (« oscilloscope music ») : par moments, le tracé du son se change en dessin (étoile, cœur,
-/// personnage…) puis redevient le son. Un seul faisceau : ce sont les échantillons eux-mêmes qui glissent du nuage
-/// vers le dessin, le parcourent (le son le fait trembler) et repartent. Le moment (souvent un temps fort),
-/// l'endroit, la taille et le dessin sont tirés au hasard.
+/// Dessins d'oscilloscope (« oscilloscope music ») : par moments, le faisceau quitte le son et écrit d'un trait un dessin
+/// (étoile, cœur, personnage…) au cœur du tracé, puis le dessin redevient le son. Il suit la stéréo comme le nuage du
+/// goniomètre : il glisse et penche du côté le plus fort, s'affine en mono, s'élargit en stéréo large.
+/// Feux d'artifice : plus la stéréo est intense, plus le dessin se déforme et envahit le module ; un coup de stéréo le fait
+/// exploser en étincelles (qui refroidissent, se divisent en vol, avec une onde de choc) ou fait éclore une nouvelle forme.
+/// Tout est tracé par les échantillons du son eux-mêmes : <see cref="Apply"/> déplace chacun d'eux.
 /// </summary>
 internal sealed class ScopeDrawer
 {
@@ -16,7 +18,7 @@ internal sealed class ScopeDrawer
     /// <summary>Un tracé prêt à parcourir : ses segments bout à bout (le faisceau saute d'un trait à l'autre sans tracer).</summary>
     private sealed class Path
     {
-        public readonly float[] X, Y, DX, DY, Length;
+        public readonly float[] X, Y, DX, DY, Length, Start;
         public readonly float Total;
 
         public Path(float[][] strokes)
@@ -33,145 +35,412 @@ internal sealed class ScopeDrawer
             DX = segments.Select(x => x.DX).ToArray();
             DY = segments.Select(x => x.DY).ToArray();
             Length = segments.Select(x => x.L).ToArray();
+            Start = new float[Length.Length];
+            for (int i = 1; i < Start.Length; i++) Start[i] = Start[i - 1] + Length[i - 1];
             Total = Length.Sum();
         }
+
+        /// <summary>Point situé à la fraction <paramref name="u"/> de la longueur du tracé (en boucle).</summary>
+        public (float X, float Y) At(float u)
+        {
+            float d = (u - MathF.Floor(u)) * Total;
+            int j = Array.BinarySearch(Start, d);
+            if (j < 0) j = Math.Max(0, ~j - 1);
+            float t = Math.Clamp((d - Start[j]) / Length[j], 0, 1);
+            return (X[j] + DX[j] * t, Y[j] + DY[j] * t);
+        }
+    }
+
+    private enum Phase { Idle, Write, Bloom, Hold, Morph, Out, Burst }
+
+    /// <summary>Onde de choc : un anneau qui s'élargit en s'éteignant.</summary>
+    private struct Ring
+    {
+        public float X, Y, MaxX, MaxY, Strength;
+        public double Start, Life;
     }
 
     private static readonly Shape[] Shapes = BuildShapes();
     private static readonly Path[][] Paths = Shapes.Select(s => s.Variants.Select(v => new Path(v)).ToArray()).ToArray();
 
-    /// <summary>Passage du son au dessin, puis du dessin au son (secondes).</summary>
-    private const double MorphIn = 0.22, MorphOut = 0.4;
+    /// <summary>Durées (secondes) : écriture d'un trait, retour au son, passage d'un dessin à l'autre, éclosion.</summary>
+    private const double WriteTime = 0.12, OutTime = 0.22, MorphTime = 0.3, BloomTime = 0.4;
+    /// <summary>Étincelles d'une explosion ou d'une éclosion (chacune tracée par plusieurs échantillons, en traînée).</summary>
+    private const int Sparks = 80;
+    /// <summary>Lueur déposée autour des points du dessin et des étincelles.</summary>
+    private const float Glow = 0.02f;
 
     private readonly Random _random = new();
     private readonly List<int> _bag = new();
-    private int _shape = -1, _beat;
-    private bool _active;
-    private double _clock, _lastOnset = -1, _lastSound = -10, _start, _end, _nextAllowed = 1;
-    private float _slow, _pulse, _u, _v, _size;
-    private float[] _x = Array.Empty<float>(), _y = Array.Empty<float>();
+    private Phase _phase;
+    private int _shape = -1, _beat, _chain;
+    private Path? _from;
+    private double _clock, _t0, _holdEnd, _burstEnd, _nextAllowed = 1, _idleSince, _shownSince, _yaw;
+    private double _lastOnset = -1, _lastHit = -10, _lastSound = -10, _lastRing = -10;
+    private float _slow, _slowSide, _balance, _width, _intensity, _pulse, _shakeX, _shakeY, _boost;
+    // Mise en place de l'image : centre, rayons, inclinaison, largeur, rotation 3D, déformation.
+    private float _cx, _cy, _rx, _ry, _cos = 1, _sin, _aspect = 1, _turn = 1, _drift, _half, _unit = 1, _w, _h;
+    private readonly float[] _ox = new float[Sparks], _oy = new float[Sparks], _vx = new float[Sparks], _vy = new float[Sparks];
+    private readonly float[] _life = new float[Sparks], _pop = new float[Sparks], _popAngle = new float[Sparks], _popSpeed = new float[Sparks];
+    private readonly float[] _bx = new float[Sparks], _by = new float[Sparks];
+    private readonly Ring[] _rings = new Ring[4];
+    private int _ringCount;
 
-    /// <summary>0 = le son seul, 1 = le dessin seul ; entre les deux, chaque point glisse de l'un à l'autre.</summary>
-    public float Morph { get; private set; }
+    /// <summary>Un dessin, une explosion ou une onde de choc est en cours.</summary>
+    public bool Active => _phase != Phase.Idle || _ringCount > 0;
 
-    /// <summary>Amplitude (pixels) dont le son fait trembler le dessin.</summary>
-    public float Jitter { get; private set; }
+    /// <summary>Rémanence en plus pendant une explosion (multiplie la rémanence du module par 1 + cette valeur).</summary>
+    public float Afterglow => 0.5f * _boost;
 
-    /// <summary>Un dessin est en cours (apparition, tenue ou disparition).</summary>
-    public bool Active => _active;
-
-    /// <summary>Position sur le dessin de chaque échantillon de l'image, en pixels (quand <see cref="Morph"/> &gt; 0).</summary>
-    public ReadOnlySpan<float> X => _x;
-
-    /// <inheritdoc cref="X"/>
-    public ReadOnlySpan<float> Y => _y;
+    private Path Current => Paths[_shape][_beat % Paths[_shape].Length];
 
     /// <summary>
-    /// Fait vivre les dessins (apparition au hasard, tenue, retour au son) et place chaque échantillon de l'image sur le
-    /// dessin courant, dans la zone du tracé (<paramref name="x0"/>, <paramref name="w"/>, <paramref name="height"/>).
+    /// Fait vivre les dessins et déplace les échantillons de l'image : <paramref name="fx"/>, <paramref name="fy"/> arrivent
+    /// à leur place dans le nuage du son et repartent à leur place sur le dessin ; <paramref name="weight"/> (1 au départ)
+    /// dose leur éclat (0 = ne rien tracer), <paramref name="glow"/> (0 au départ) la lueur autour.
+    /// <paramref name="sx"/>, <paramref name="sy"/> : écart de chaque échantillon dans le nuage (-1..1), qui fait trembler le dessin.
     /// </summary>
-    public void Update(AudioAnalyzer audio, double dt, bool often, float wobble, bool spin, int x0, int w, int height)
+    public void Apply(AudioAnalyzer audio, double dt, bool often, bool fireworks, float wobble,
+        ReadOnlySpan<float> sx, ReadOnlySpan<float> sy, Span<float> fx, Span<float> fy, Span<float> weight, Span<float> glow,
+        int x0, int w, int height)
     {
         _clock += dt;
-        float energy = (audio.RmsL * audio.RmsL + audio.RmsR * audio.RmsR) / 2;
-        float ratio = energy / Math.Max(_slow, 1e-9f);
-        _slow += (energy - _slow) * (float)(1 - Math.Exp(-dt / 0.6));
+        int n = audio.Count;
+
+        // Écoute : balance et largeur stéréo (lissées), coups (énergie totale) et coups de stéréo (énergie des côtés).
+        float eL = 0, eR = 0, eM = 0, eS = 0;
+        for (int i = 0; i < n; i++)
+        {
+            float l = audio.Left[i], r = audio.Right[i], m = (l + r) * 0.5f, s = (r - l) * 0.5f;
+            eL += l * l;
+            eR += r * r;
+            eM += m * m;
+            eS += s * s;
+        }
+        float follow = (float)(1 - Math.Exp(-dt / 0.12)), settle = (float)(1 - Math.Exp(-dt / 0.6));
+        float wide = eS / (eM + eS + 1e-12f);
+        _balance += ((eR - eL) / (eR + eL + 1e-12f) - _balance) * follow;
+        _width += (wide - _width) * follow;
+        float intensity = _intensity = fireworks ? Smooth((_width - 0.15) / 0.35) : 0;
+        float energy = n > 0 ? (eL + eR) / (2 * n) : 0, side = n > 0 ? eS / n : 0;
+        float ratio = energy / Math.Max(_slow, 1e-9f), sideRatio = side / Math.Max(_slowSide, 1e-9f);
+        _slow += (energy - _slow) * settle;
+        _slowSide += (side - _slowSide) * settle;
         bool sound = energy > 3e-6f; // ≈ -55 dB
         if (sound) _lastSound = _clock;
         bool onset = sound && ratio > 1.8f && _clock - _lastOnset > 0.18;
+        bool hit = fireworks && sound && side > 2e-6f && sideRatio > 2.2f && wide > 0.22f && _clock - _lastHit > 1.2;
+
+        _pulse *= (float)Math.Exp(-dt / 0.15);
+        _boost *= (float)Math.Exp(-dt / 0.8);
+        float settleShake = (float)Math.Exp(-dt / 0.1);
+        _shakeX *= settleShake;
+        _shakeY *= settleShake;
+        _unit = height / 40f;
         if (onset)
         {
             _lastOnset = _clock;
             _beat++;
             _pulse = 1;
+            _shakeX += Rand() * 3 * _unit * intensity;
+            _shakeY += Rand() * 1.5f * _unit * intensity;
         }
-        _pulse *= (float)Math.Exp(-dt / 0.15);
 
-        if (!_active)
+        Layout(x0, w, height, dt);
+        if (onset && _phase is Phase.Hold or Phase.Morph && intensity > 0.55f && _clock - _lastRing > 0.9)
         {
-            // Pas à chaque coup : un temps fort sur deux environ (plus souvent en mode « Souvent ») ; sans percussions,
-            // un dessin finit quand même par venir.
-            bool due = sound && _clock >= _nextAllowed;
-            if (due && ((onset && _random.NextDouble() < (often ? 0.8 : 0.5)) || _clock >= _nextAllowed + (often ? 1.0 : 2.5)))
-                Begin(often);
+            _lastRing = _clock;
+            AddRing(_rx * 1.15f + intensity * w * 0.22f, _ry * 1.25f + intensity * 6 * _unit, 0.3, 0.3f + 0.5f * intensity);
         }
-        if (_active)
+        if (hit)
         {
-            if (_clock - _lastSound > 0.4) _end = Math.Min(_end, _clock); // plus de son : le dessin repart
-            float m = Smooth((_clock - _start) / MorphIn) * (1 - Smooth((_clock - _end) / MorphOut));
-            if (_clock - _end >= MorphOut)
-            {
-                _active = false;
-                m = 0;
-                _nextAllowed = _clock + (often ? Between(0.3, 1.5) : Between(1.5, 5));
-            }
-            Morph = m;
+            _lastHit = _clock;
+            float power = Math.Clamp((sideRatio - 1) / 3, 0.6f, 1.5f);
+            // Le dessin n'explose qu'une fois bien vu ; sans dessin, le coup en fait éclore un.
+            if (_phase is Phase.Hold or Phase.Morph && _clock - _shownSince > 0.6) Burst(power);
+            else if (_phase == Phase.Idle && _clock - _idleSince > 0.3) Bloom();
         }
-        else
-        {
-            Morph = 0;
-        }
-        if (Morph <= 0) return;
+        Advance(often, sound, onset, intensity);
 
-        int n = audio.Count;
-        if (_x.Length < n)
+        for (int i = 0; i < _ringCount; i++)
         {
-            _x = new float[n];
-            _y = new float[n];
+            if (_clock - _rings[i].Start < _rings[i].Life) continue;
+            _rings[i--] = _rings[--_ringCount];
         }
-        if (n == 0) return;
+        if (Active && _shape >= 0) Plot(n, wobble, sx, sy, fx, fy, weight, glow);
+    }
 
-        // Place et taille tirées au départ ; le dessin reste entier dans la zone du tracé.
-        float half = Math.Min(w, height) / 2f * _size;
-        float cx = x0 + half + _u * Math.Max(0, w - 2 * half), cy = half + _v * Math.Max(0, height - 2 * half);
-        float r = half * (1 + 0.12f * _pulse);
-        float angle = spin ? (float)(_clock * 0.6) : 0.08f * MathF.Sin((float)_clock * 1.7f);
-        float cos = MathF.Cos(angle), sin = MathF.Sin(angle);
-        Jitter = wobble * 0.25f * half;
+    /// <summary>Place le dessin : au centre, glissé et penché du côté le plus fort, plus ou moins large selon la stéréo.</summary>
+    private void Layout(int x0, int w, int height, double dt)
+    {
+        float intensity = _intensity;
+        _w = w;
+        _h = height;
+        _half = Math.Min(w, height) / 2f * 0.86f;
+        float r = _half * (1 + (0.12f + 0.3f * intensity) * _pulse);
+        _drift = Math.Clamp(_balance * 1.8f, -1, 1);
+        _cx = x0 + (w - 1) / 2f + _drift * Math.Max(0, w / 2f - _half * 1.25f) * (1 - intensity) + _shakeX;
+        _cy = (height - 1) / 2f + _shakeY;
+        // Stéréo intense : le dessin grandit et s'élargit (jusqu'à deux fois plus large).
+        _rx = r * (1 + intensity * Math.Clamp(w / (2.1f * r) - 1, 0, 1.2f));
+        _ry = r * (1 + 0.18f * intensity);
+        float lean = -_drift * 0.45f * (1 - 0.5f * intensity);
+        _cos = MathF.Cos(lean);
+        _sin = MathF.Sin(lean);
+        _aspect = 0.8f + 0.35f * Math.Min(1, _width * 2.5f) * (1 - intensity);
+        // Légère rotation 3D (le dessin tourne comme une pièce), plus vive quand la stéréo s'emballe.
+        _yaw += dt * (1.1 + 3.5 * intensity);
+        _turn = MathF.Cos((0.7f + 0.6f * intensity) * MathF.Sin((float)_yaw));
+    }
 
-        // Les échantillons parcourent le dessin d'un bout à l'autre pendant l'image, à partir d'un point au hasard :
-        // d'une image à l'autre, le phosphore le remplit tout entier.
-        var path = Paths[_shape][_beat % Paths[_shape].Length];
-        int last = path.Length.Length - 1, j = 0;
-        float step = path.Total / n, s = (float)(_random.NextDouble() * path.Total), acc = 0;
-        for (int i = 0; i < n; i++)
+    /// <summary>Enchaîne les phases : apparition (au hasard, souvent sur un temps fort), tenue, passage à un autre dessin, retour au son.</summary>
+    private void Advance(bool often, bool sound, bool onset, float intensity)
+    {
+        double age = _clock - _t0;
+        switch (_phase)
         {
-            while (j < last && acc + path.Length[j] < s)
-            {
-                acc += path.Length[j];
-                j++;
-            }
-            float t = Math.Clamp((s - acc) / path.Length[j], 0, 1);
-            float ux = path.X[j] + path.DX[j] * t, uy = path.Y[j] + path.DY[j] * t;
-            _x[i] = cx + (ux * cos - uy * sin) * r;
-            _y[i] = cy - (ux * sin + uy * cos) * r;
-            s += step;
-            if (s >= path.Total)
-            {
-                s -= path.Total;
-                j = 0;
-                acc = 0;
-            }
+            case Phase.Idle:
+                if (sound && intensity > 0.5f && _clock - _idleSince > 0.35)
+                {
+                    Bloom();
+                }
+                else if (sound && _clock >= _nextAllowed
+                         && ((onset && _random.NextDouble() < (often ? 0.8 : 0.5)) || _clock >= _nextAllowed + (often ? 1.0 : 2.5)))
+                {
+                    _shape = Next();
+                    _chain = 0;
+                    Enter(Phase.Write);
+                }
+                break;
+            case Phase.Write when age >= WriteTime:
+            case Phase.Bloom when age >= BloomTime * 1.4:
+                Hold((often ? Between(1.4, 2.6) : Between(1, 2)) * (1 - 0.45 * intensity));
+                break;
+            case Phase.Hold when intensity > 0.6f && _clock >= _holdEnd:
+                Burst(0.8f + 0.7f * intensity);
+                break;
+            case Phase.Hold when _clock - _lastSound > 0.4 || _clock >= _holdEnd:
+                if (often && _chain < 2 && _clock - _lastSound <= 0.4 && _random.NextDouble() < 0.6)
+                {
+                    _from = Current;
+                    _shape = Next();
+                    _chain++;
+                    Enter(Phase.Morph);
+                }
+                else
+                {
+                    Enter(Phase.Out);
+                }
+                break;
+            case Phase.Morph when age >= MorphTime:
+                Hold(Between(1, 2) * (1 - 0.45 * intensity));
+                break;
+            case Phase.Out when age >= OutTime:
+                Rest(often ? Between(0.4, 1.6) : Between(1.5, 5));
+                break;
+            case Phase.Burst when _clock >= _burstEnd - 0.3 * intensity:
+                if (sound && intensity > 0.35f) Bloom();
+                else if (_clock >= _burstEnd) Rest(often ? Between(0.3, 1.1) : Between(1, 3));
+                break;
         }
     }
 
-    private void Begin(bool often)
+    private void Enter(Phase phase)
+    {
+        _phase = phase;
+        _t0 = _clock;
+    }
+
+    private void Hold(double seconds)
+    {
+        if (_phase != Phase.Morph) _shownSince = _clock; // le dessin vient d'apparaître (écrit ou éclos)
+        Enter(Phase.Hold);
+        _holdEnd = _clock + seconds;
+    }
+
+    private void Rest(double seconds)
+    {
+        Enter(Phase.Idle);
+        _idleSince = _clock;
+        _nextAllowed = _clock + seconds;
+    }
+
+    /// <summary>Feu d'artifice : les étincelles jaillissent du centre en tourbillon et se figent en dessin.</summary>
+    private void Bloom()
     {
         _shape = Next();
-        _active = true;
-        _start = _clock;
-        _end = _clock + MorphIn + (often ? Between(0.9, 2.0) : Between(0.7, 1.5));
-        _u = (float)_random.NextDouble();
-        _v = (float)_random.NextDouble();
-        _size = (float)Between(0.6, 0.95);
+        _chain = 0;
+        var path = Current;
+        for (int j = 0; j < Sparks; j++) (_bx[j], _by[j]) = path.At(j / (float)Sparks);
+        Enter(Phase.Bloom);
+        AddRing(_w * 0.3f + _intensity * _w * 0.25f, _h * 0.5f, 0.35, 0.9f);
+    }
+
+    /// <summary>Explosion : le contour vole en étincelles, poussées du côté le plus fort, avec une onde de choc.</summary>
+    private void Burst(float power)
+    {
+        float intensity = _intensity, longest = 0;
+        power *= 1 + 0.8f * intensity;
+        var path = Current;
+        for (int j = 0; j < Sparks; j++)
+        {
+            var (ux, uy) = path.At(j / (float)Sparks);
+            var (px, py) = Place(ux, uy);
+            _ox[j] = px;
+            _oy[j] = py;
+            float dx = (px - _cx) / _rx + Rand() * 0.5f, dy = (py - _cy) / _ry + Rand() * 0.5f;
+            float speed = (0.5f + _random.NextSingle() * 0.9f) * power;
+            _vx[j] = dx * speed * _w * 0.6f * (0.6f + _width * 1.6f) + _drift * 60 * _unit;
+            _vy[j] = dy * speed * _h * 2 - 12 * _unit;
+            _life[j] = (0.45f + _random.NextSingle() * 0.6f) * (0.8f + 0.3f * power);
+            // Une étincelle sur trois ou quatre éclate encore en vol, en trois petites gerbes.
+            _pop[j] = float.MaxValue;
+            if (_random.NextSingle() < 0.4f)
+            {
+                _pop[j] = _life[j] * (0.3f + _random.NextSingle() * 0.25f);
+                _popAngle[j] = _random.NextSingle() * MathF.Tau;
+                _popSpeed[j] = (10 + _random.NextSingle() * 14) * (0.8f + 0.5f * intensity) * _unit;
+                _life[j] = Math.Max(_life[j], _pop[j] + 0.5f);
+            }
+            longest = Math.Max(longest, _life[j]);
+        }
+        Enter(Phase.Burst);
+        _burstEnd = _clock + longest + 0.1;
+        _pulse = 1;
+        _boost = 1;
+        _shakeX = Rand() * 6 * _unit;
+        _shakeY = Rand() * 3 * _unit;
+        AddRing(_w * 0.62f, _h * 0.75f, 0.5, 1.6f);
+    }
+
+    private void AddRing(float maxX, float maxY, double life, float strength)
+    {
+        if (_ringCount == _rings.Length)
+        {
+            Array.Copy(_rings, 1, _rings, 0, _rings.Length - 1);
+            _ringCount--;
+        }
+        _rings[_ringCount++] = new Ring { X = _cx, Y = _cy, MaxX = maxX, MaxY = maxY, Strength = strength, Start = _clock, Life = life };
+    }
+
+    /// <summary>Position à l'écran d'un point du dessin (coordonnées -1..1, y vers le haut).</summary>
+    private (float X, float Y) Place(float ux, float uy)
+    {
+        float intensity = _intensity;
+        if (intensity > 0)
+        {
+            // Stéréo intense : le dessin ondule comme un liquide.
+            float t = (float)_clock;
+            ux += MathF.Sin(uy * 3.1f + t * 7) * 0.18f * intensity;
+            uy += MathF.Sin(ux * 2.7f - t * 5.3f) * 0.14f * intensity;
+        }
+        ux *= _aspect * _turn;
+        return (_cx + (ux * _cos - uy * _sin) * _rx, _cy - (ux * _sin + uy * _cos) * _ry);
+    }
+
+    private void Plot(int n, float wobble, ReadOnlySpan<float> sx, ReadOnlySpan<float> sy, Span<float> fx, Span<float> fy,
+        Span<float> weight, Span<float> glow)
+    {
+        float intensity = _intensity, age = (float)(_clock - _t0);
+        float jitter = wobble * 0.22f * _half * (1 + 0.8f * _width) + 1.5f * _unit * intensity;
+        int per = (n + Sparks - 1) / Sparks;
+        float m = _phase switch
+        {
+            Phase.Idle => 0,
+            Phase.Out => 1 - Smooth(age / OutTime),
+            _ => 1,
+        };
+        float write = Smooth(age / WriteTime), morph = Smooth(age / MorphTime), offset = _random.NextSingle();
+        var path = Current;
+        for (int i = 0; i < n; i++)
+        {
+            // Une partie du faisceau trace les ondes de choc.
+            if (_ringCount > 0 && i % 8 == 0)
+            {
+                ref var g = ref _rings[i / 8 % _ringCount];
+                float p = (float)((_clock - g.Start) / g.Life), e = EaseOut(p), a = _random.NextSingle() * MathF.Tau;
+                fx[i] = g.X + MathF.Cos(a) * g.MaxX * e;
+                fy[i] = g.Y + MathF.Sin(a) * g.MaxY * e;
+                weight[i] = (1 - p) * g.Strength * 1.2f;
+                glow[i] = Glow;
+                continue;
+            }
+
+            int j = i % Sparks, k = i / Sparks;
+            float trail = k / (float)per;
+            switch (_phase)
+            {
+                case Phase.Burst:
+                {
+                    float t = age - 0.05f * trail;
+                    if (t < 0 || t > _life[j]) break; // étincelle éteinte : l'échantillon retourne au son
+                    float e = 1 - MathF.Exp(-t / 0.3f), x = _ox[j] + _vx[j] * 0.3f * e, y = _oy[j] + _vy[j] * 0.3f * e + 22 * _unit * t * t;
+                    float heat;
+                    if (t > _pop[j])
+                    {
+                        float a = _popAngle[j] + k % 3 * 2.094f, e2 = 1 - MathF.Exp(-(t - _pop[j]) / 0.18f);
+                        x += MathF.Cos(a) * _popSpeed[j] * e2 * 2.2f;
+                        y += MathF.Sin(a) * _popSpeed[j] * e2;
+                        heat = 1 - (t - _pop[j]) / (_life[j] - _pop[j]);
+                    }
+                    else
+                    {
+                        heat = 1 - t / _life[j];
+                    }
+                    // Les étincelles naissent blanches et refroidissent (la palette descend), en scintillant à la fin.
+                    fx[i] = x;
+                    fy[i] = y;
+                    weight[i] = heat < 0.35f && _random.NextSingle() < 0.4f ? 0 : (0.2f + 1.5f * MathF.Pow(Math.Max(0, heat), 1.5f)) * (1 - 0.7f * trail);
+                    glow[i] = Glow;
+                    break;
+                }
+                case Phase.Bloom:
+                {
+                    float p = EaseOut(age / BloomTime - 0.35f * trail), a = (1 - p) * 3, c = MathF.Cos(a), s = MathF.Sin(a);
+                    var (qx, qy) = Place(_bx[j] * c - _by[j] * s, _bx[j] * s + _by[j] * c);
+                    fx[i] = _cx + (qx - _cx) * p + sx[i] * jitter * 0.5f;
+                    fy[i] = _cy + (qy - _cy) * p - sy[i] * jitter * 0.5f;
+                    weight[i] = _random.NextSingle() < 0.25f ? 0 : (0.5f + 1.6f * (1 - p)) * (1 - 0.5f * trail) + 0.4f;
+                    glow[i] = Glow;
+                    break;
+                }
+                case Phase.Write or Phase.Hold or Phase.Morph or Phase.Out:
+                {
+                    // Écriture : le faisceau parcourt le dessin du début jusqu'à la plume ; ensuite il le parcourt
+                    // tout entier à chaque image, à partir d'un point au hasard.
+                    float u = _phase == Phase.Write ? write * i / n * 0.9999f : offset + i / (float)n;
+                    var (ux, uy) = path.At(u);
+                    if (_phase == Phase.Morph && _from is { } from)
+                    {
+                        var (ax, ay) = from.At(u);
+                        ux = ax + (ux - ax) * morph;
+                        uy = ay + (uy - ay) * morph;
+                    }
+                    var (tx, ty) = Place(ux, uy);
+                    fx[i] += (tx + sx[i] * jitter - fx[i]) * m;
+                    fy[i] += (ty - sy[i] * jitter - fy[i]) * m;
+                    if (m > 0.5f) glow[i] = Glow;
+                    break;
+                }
+            }
+        }
     }
 
     private double Between(double min, double max) => min + _random.NextDouble() * (max - min);
+
+    /// <summary>Nombre au hasard entre -1 et 1.</summary>
+    private float Rand() => _random.NextSingle() * 2 - 1;
 
     private static float Smooth(double t)
     {
         float x = (float)Math.Clamp(t, 0, 1);
         return x * x * (3 - 2 * x);
+    }
+
+    private static float EaseOut(double t)
+    {
+        float x = 1 - (float)Math.Clamp(t, 0, 1);
+        return 1 - x * x * x;
     }
 
     private int Next()
