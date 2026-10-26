@@ -31,15 +31,17 @@ drawn straight into the empty space on each side of your icons, in a dot-matrix 
 | **Loudness history** | LUFS over 15 s to 5 min against your target |
 | **Piano roll** | the notes actually played, octave included, on a 3–6 octave keyboard with scrolling history: dedicated two-resolution FFT, peaks accurate to a few cents, harmonics sieved out |
 | **XY oscilloscope** | goniometer or Lissajous drawn in phosphor that fades like a CRT |
+| **Aero oscilloscope** | the waveform in a glossy Frutiger Aero glass bubble: bubbles rise with the volume, notes ♪, sparkles and drops burst out on the beats (aqua, apple green or palette colours) |
 | **Raw data** | the samples as your sound card sees them, in scrolling hex or a bit matrix. Purely experimental |
 
-The *Layout* tab shows your taskbar in miniature, modules to scale: click one to set its width, drag it
+The *Layout* page shows your taskbar in miniature, modules to scale: click one to set its width, drag it
 to reorder or switch sides, or group them all in the middle when your icons are left-aligned. Each module
 can use the global palette, another palette, its own gradient or a solid colour. On launch they run a
 short LED *self-test* before going live.
 
 On first launch a 5-step guide lights up the free areas on your real taskbar, lets you pick a look and a
-module pack (Studio, Musician, Minimal or your own), then points at the tray icon. Replay it from *General*.
+module pack (Studio, Musician, Minimal, or an empty taskbar to fill yourself), then points at the tray icon.
+Replay it from *Home* or *General*.
 
 ![First-run guide](docs/welcome.png)
 
@@ -60,9 +62,14 @@ module pack (Studio, Musician, Minimal or your own), then points at the tray ico
 ![Settings window](docs/settings.png)
 
 One-click presets (Lab, MiniMeters-like, CRT Phosphor, Synthwave, Vaporwave, Chrome Y2K, Toxic, RGB,
-and hardware looks: VFD, LCD, Nixie), 17 palettes including animated RGB (6 animations, adjustable speed), custom gradients of 2 to 8
-colours (global or per module), real colour picker, pixel or smooth font, scanlines, per-module options
-tucked behind *More options*. UI in English, French, Spanish and German (follows Windows).
+and hardware looks: VFD, LCD, Nixie), 16 palettes including RGB, a colour animation for any palette
+(scroll up or down, one colour at a time, back and forth, breathing pulse; 2 to 60 s per cycle), custom
+gradients of 2 to 8 colours (global or per module), real colour picker, pixel or smooth font, scanlines,
+per-module options tucked behind *More options*. UI in English, French, Spanish and German (follows Windows).
+
+The window looks like Windows 11 Settings: a side menu (Home, Appearance, Layout, Modules, General), and
+every setting is a card with an icon and a one-line explanation. *Home* shows what is playing, the free
+space on the taskbar, hide / pause buttons, one-click styles and the modules currently shown.
 
 - **Share a style** as a short `TBV1:…` code (paste it on Discord) or a `.tbvstyle` file.
 - **Listen to one app only**: FL Studio without Discord, a game without your music, or a mic/line input.

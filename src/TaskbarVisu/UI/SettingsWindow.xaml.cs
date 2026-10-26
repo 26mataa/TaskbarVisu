@@ -2,9 +2,7 @@
 using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Input;
 using System.Windows.Media;
-using System.Windows.Media.Media3D;
 using System.Windows.Threading;
 using TaskbarVisu.Core;
 using TaskbarVisu.Modules;
@@ -13,8 +11,9 @@ using TaskbarVisu.Taskbar;
 namespace TaskbarVisu.UI;
 
 /// <summary>
-/// Fenêtre de réglages (style Windows 11 via le thème Fluent de WPF).
-/// Les options des modules sont générées depuis <see cref="ModuleCatalog"/> ; tout s'applique en direct.
+/// Fenêtre de réglages façon Paramètres de Windows 11 (thème Fluent de WPF) : navigation à gauche
+/// (Accueil, Apparence, Disposition, Modules, Général), réglages en cartes. Tout s'applique en direct.
+/// Les options des modules sont générées depuis <see cref="ModuleCatalog"/>.
 /// </summary>
 public partial class SettingsWindow : Window
 {
@@ -34,6 +33,7 @@ public partial class SettingsWindow : Window
     {
         InitializeComponent();
         RebuildAll();
+        Tabs.SelectionChanged += OnPageChanged;
 
         _statusTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         _statusTimer.Tick += (_, _) => UpdateStatus();
@@ -53,13 +53,14 @@ public partial class SettingsWindow : Window
     private void RebuildAll()
     {
         Title = Loc.T("TaskbarVisu — Paramètres");
-        TabGeneral.Header = Loc.T("Général");
-        TabAppearance.Header = Loc.T("Apparence");
-        TabLayout.Header = Loc.T("Disposition");
-        TabModules.Header = Loc.T("Modules");
-        ResetAllButton.Content = Loc.T("Tout réinitialiser");
-        CloseButton.Content = Loc.T("Fermer");
+        VersionText.Text = Loc.F("Version {0}", UpdateChecker.CurrentText);
+        TabHome.Header = NavHeader("", "Accueil");
+        TabAppearance.Header = NavHeader("", "Apparence");
+        TabLayout.Header = NavHeader("", "Disposition");
+        TabModules.Header = NavHeader("", "Modules");
+        TabGeneral.Header = NavHeader("", "Général");
 
+        BuildHome();
         BuildGeneral();
         BuildAppearance();
         BuildLayout();
@@ -67,14 +68,38 @@ public partial class SettingsWindow : Window
         UpdateStatus();
     }
 
+    private static StackPanel NavHeader(string glyph, string text)
+    {
+        var icon = Glyph(glyph, 16);
+        icon.Margin = new Thickness(0, 0, 14, 0);
+        return new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Children = { icon, new TextBlock { Text = Loc.T(text), FontSize = 14, VerticalAlignment = VerticalAlignment.Center } },
+        };
+    }
+
+    /// <summary>Une page reflète toujours les réglages actuels quand on l'ouvre (un autre onglet a pu les changer).</summary>
+    private void OnPageChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (!ReferenceEquals(e.OriginalSource, Tabs)) return;
+        if (Tabs.SelectedItem == TabHome) BuildHome();
+        else if (Tabs.SelectedItem == TabAppearance) BuildAppearance();
+        else if (Tabs.SelectedItem == TabModules) BuildModules();
+        else if (Tabs.SelectedItem == TabLayout) BuildLayout();
+    }
+
+    private void GoTo(TabItem page) => Tabs.SelectedItem = page;
+
     // ---------------------------------------------------------------- Général
 
     private void BuildGeneral()
     {
         var p = GeneralPanel;
         p.Children.Clear();
+        PageHeader(p, "Général", "Ce que TaskbarVisu écoute, son démarrage, son affichage et ses mises à jour.");
 
-        // Du plus utile au plus technique : ce qu'on écoute, le démarrage, l'affichage ; le reste est replié en bas.
+        // Du plus utile au plus technique ; les réglages fins sont repliés en bas.
         BuildAudioSource(p);
 
         p.Children.Add(Section("Démarrage"));
@@ -82,13 +107,12 @@ public partial class SettingsWindow : Window
         {
             S.StartWithWindows = v;
             StartupManager.Sync(v);
-        });
-        AddToggle(p, "Fermer cette fenêtre laisse TaskbarVisu tourner dans la zone de notification",
-            S.CloseToTray, v => S.CloseToTray = v);
-        AddToggle(p, "Animation d'allumage des modules au lancement", S.BootAnimation, v => S.BootAnimation = v);
-        var guide = new Button { Content = Loc.T("Revoir le guide de démarrage"), HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 6, 0, 4) };
-        guide.Click += (_, _) => ShowWelcome();
-        p.Children.Add(guide);
+        }, "TaskbarVisu se lance discrètement à l'ouverture de la session.", "");
+        AddToggle(p, "Continuer en arrière-plan", S.CloseToTray, v => S.CloseToTray = v,
+            "Fermer cette fenêtre laisse les visualiseurs tourner ; l'icône reste dans la zone de notification.", "");
+        AddToggle(p, "Animation d'allumage", S.BootAnimation, v => S.BootAnimation = v,
+            "Petit auto-test des segments au lancement.", "");
+        ActionCard(p, "Guide de démarrage", "Revoir le guide", ShowWelcome, "Les cinq étapes du premier lancement, à rejouer quand vous voulez.", "");
 
         p.Children.Add(Section("Affichage"));
         // Les noms des langues restent dans leur propre langue.
@@ -99,7 +123,7 @@ public partial class SettingsWindow : Window
             Loc.Set(S.Language);
             // Reconstruit toute la fenêtre dans la nouvelle langue, après la fin de l'événement en cours.
             Dispatcher.BeginInvoke(RebuildAll);
-        }, translate: false);
+        }, translate: false, icon: "");
 
         // Écran : principal, tous, ou un écran précis.
         var bars = TaskbarLocator.FindAll();
@@ -110,11 +134,12 @@ public partial class SettingsWindow : Window
         {
             S.AllMonitors = i == 1;
             S.MonitorDevice = i >= 2 ? bars[i - 2].DeviceName : null;
-        }, translate: false);
+        }, translate: false, icon: "");
         if (bars.Count > 1)
             p.Children.Add(Hint("« Tous les écrans » : les mêmes modules sur la barre des tâches de chaque écran."));
 
-        AddToggle(p, "Masquer quand une application est en plein écran", S.HideWhenFullscreen, v => S.HideWhenFullscreen = v);
+        AddToggle(p, "Masquer en plein écran", S.HideWhenFullscreen, v => S.HideWhenFullscreen = v,
+            "Jeux, vidéos, présentations : les visualiseurs s'effacent tant qu'une application est en plein écran.", "");
 
         p.Children.Add(Section("Raccourci clavier"));
         AddCombo(p, "Masquer / afficher les visualiseurs", HotkeyManager.Names, (int)S.Hotkey, i =>
@@ -122,41 +147,39 @@ public partial class SettingsWindow : Window
             S.Hotkey = (HotkeyChoice)i;
             // L'aide dit si le raccourci est libre : on la met à jour une fois le raccourci appliqué.
             Dispatcher.BeginInvoke(() => RebuildKeepingScroll(GeneralPanel, BuildGeneral), DispatcherPriority.Background);
-        });
-        var hotkeyHint = Hint(_app.HotkeyAvailable
+        }, icon: "");
+        p.Children.Add(Hint(_app.HotkeyAvailable
             ? "Fonctionne partout, même en jeu. Aussi dans le menu de l'icône de la zone de notification."
-            : "Ce raccourci est déjà utilisé par une autre application : choisissez-en un autre.");
-        p.Children.Add(hotkeyHint);
+            : "Ce raccourci est déjà utilisé par une autre application : choisissez-en un autre."));
 
         BuildUpdates(p);
 
         // Réglages techniques : repliés, les valeurs par défaut conviennent à presque tout le monde.
-        var advanced = new StackPanel { Margin = new Thickness(4, 0, 0, 0) };
-        p.Children.Add(Folded("general.advanced", "Avancé : performances et dossier des réglages", advanced, new Thickness(0, 18, 0, 0)));
-        p = advanced;
-        p.Children.Add(Section("Performances"));
-        AddCombo(p, "Images par seconde", FpsChoices.Select(f => Loc.F("{0} i/s", f)).ToList(),
-            NearestIndex(FpsChoices, S.Fps), i => S.Fps = FpsChoices[i], translate: false);
-        AddCombo(p, "Résolution de l'analyse (FFT)",
+        var advanced = new StackPanel { Margin = new Thickness(0, 4, 0, 0) };
+        p.Children.Add(Folded("general.advanced", "Avancé : performances, dossier des réglages, réinitialisation", advanced, new Thickness(0, 22, 0, 0)));
+        AddCombo(advanced, "Images par seconde", FpsChoices.Select(f => Loc.F("{0} i/s", f)).ToList(),
+            NearestIndex(FpsChoices, S.Fps), i => S.Fps = FpsChoices[i], translate: false,
+            description: "60 i/s est fluide ; plus haut seulement pour un écran rapide.", icon: "");
+        AddCombo(advanced, "Résolution de l'analyse (FFT)",
             new[] { "2048 points (le plus léger)", "4096 points (recommandé)", "8192 points (graves plus précis)" },
-            NearestIndex(FftChoices, S.FftSize), i => S.FftSize = FftChoices[i]);
-        AddToggle(p, "Économie d'énergie : ne plus redessiner pendant les silences", S.PowerSaving, v => S.PowerSaving = v);
-        AddSlider(p, "Vérification de la barre des tâches", 1000, 10000, 500, S.DetectionIntervalMs,
-            v => $"{v / 1000:0.#} s", v => S.DetectionIntervalMs = (int)v);
-        p.Children.Add(Hint("Les zones libres sont recalculées dès qu'une application s'ouvre ou se ferme ; " +
-                            "cette vérification périodique rattrape le reste (icônes de notification…). Plus long = plus économe."));
-
-        p.Children.Add(Section("Dossier"));
-        var open = new Button { Content = Loc.T("Ouvrir le dossier des réglages et du journal"), HorizontalAlignment = HorizontalAlignment.Left };
-        open.Click += (_, _) =>
+            NearestIndex(FftChoices, S.FftSize), i => S.FftSize = FftChoices[i], icon: "");
+        AddToggle(advanced, "Économie d'énergie", S.PowerSaving, v => S.PowerSaving = v,
+            "Ne plus redessiner pendant les silences.", "");
+        AddSlider(advanced, "Vérification de la barre des tâches", 1000, 10000, 500, S.DetectionIntervalMs,
+            v => $"{v / 1000:0.#} s", v => S.DetectionIntervalMs = (int)v,
+            "Les zones libres sont recalculées dès qu'une application s'ouvre ou se ferme ; cette vérification " +
+            "périodique rattrape le reste (icônes de notification…). Plus long = plus économe.", "");
+        ActionCard(advanced, "Dossier des réglages et du journal", "Ouvrir", () =>
         {
             Directory.CreateDirectory(Paths.DataDir);
             Process.Start(new ProcessStartInfo("explorer.exe", $"\"{Paths.DataDir}\"") { UseShellExecute = true });
-        };
-        p.Children.Add(open);
-        p.Children.Add(Hint(Paths.Portable
+        }, Paths.Portable
             ? "Mode portable : réglages et journal sont dans le dossier « data » à côté de TaskbarVisu.exe."
-            : "Astuce : un fichier vide « portable.txt » à côté de TaskbarVisu.exe garde les réglages dans son dossier (clé USB)."));
+            : "Astuce : un fichier vide « portable.txt » à côté de TaskbarVisu.exe garde les réglages dans son dossier (clé USB).", "");
+        ActionCard(advanced, "Tout réinitialiser", "Réinitialiser…", ResetAll,
+            "Remet tous les réglages et la disposition par défaut (la langue et le démarrage sont conservés).", "");
+
+        MergeHints(p);
     }
 
     /// <summary>Source audio : un choix principal, et un second menu seulement quand il sert (sortie, application, entrée).</summary>
@@ -188,6 +211,7 @@ public partial class SettingsWindow : Window
                     help.Text = Loc.T("Tout ce que vous entendez, sur la sortie par défaut (suit le changement de casque ou d'enceintes).");
                     break;
             }
+            MergeHints(detail);
         }
 
         AddCombo(p, "Écouter", new[] { "Tout le son du PC", "Une sortie audio précise", "Une seule application", "Une entrée (micro, ligne)" },
@@ -195,9 +219,9 @@ public partial class SettingsWindow : Window
             {
                 S.AudioSource = (AudioSourceKind)i;
                 ShowDetail();
-            });
-        p.Children.Add(detail);
+            }, icon: "");
         p.Children.Add(help);
+        p.Children.Add(detail);
         ShowDetail();
     }
 
@@ -208,7 +232,7 @@ public partial class SettingsWindow : Window
             devices.Insert(0, new Audio.AudioEndpoint(id, Loc.F("{0} (débranché)", S.AudioDeviceName ?? "?")));
         if (devices.Count == 0)
         {
-            panel.Children.Add(Hint("Aucun périphérique trouvé."));
+            panel.Children.Add(Card("Aucun périphérique trouvé.", null, ""));
             return;
         }
         int index = Math.Max(0, devices.FindIndex(d => d.Id == S.AudioDeviceId));
@@ -222,7 +246,7 @@ public partial class SettingsWindow : Window
         {
             S.AudioDeviceId = devices[i].Id;
             S.AudioDeviceName = devices[i].Name;
-        }, translate: false);
+        }, translate: false, icon: "");
     }
 
     private void AddAppChoice(Panel panel)
@@ -232,12 +256,7 @@ public partial class SettingsWindow : Window
         if (S.AudioApp is { } saved && apps.All(a => !a.ProcessName.Equals(saved, StringComparison.OrdinalIgnoreCase)))
             apps.Insert(0, new Audio.AudioApp(saved, Loc.F("{0} (pas lancée)", saved)));
 
-        var row = new StackPanel();
-        if (apps.Count == 0)
-        {
-            row.Children.Add(Hint("Aucune application n'utilise le son pour l'instant : lancez de la musique puis cliquez sur Actualiser."));
-        }
-        else
+        if (apps.Count > 0)
         {
             int index = Math.Max(0, apps.FindIndex(a => a.ProcessName.Equals(S.AudioApp, StringComparison.OrdinalIgnoreCase)));
             if (!apps[index].ProcessName.Equals(S.AudioApp, StringComparison.OrdinalIgnoreCase))
@@ -245,45 +264,45 @@ public partial class SettingsWindow : Window
                 S.AudioApp = apps[index].ProcessName;
                 Changed();
             }
-            AddCombo(row, "Application", apps.Select(a => a.DisplayName).ToList(), index,
-                i => S.AudioApp = apps[i].ProcessName, translate: false);
+            AddCombo(panel, "Application", apps.Select(a => a.DisplayName).ToList(), index,
+                i => S.AudioApp = apps[i].ProcessName, translate: false, icon: "");
         }
-        var refresh = new Button { Content = Loc.T("Actualiser la liste"), HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(250, 2, 0, 4) };
-        refresh.Click += (_, _) =>
-        {
-            panel.Children.Clear();
-            AddAppChoice(panel);
-        };
-        row.Children.Add(refresh);
-        panel.Children.Add(row);
+        ActionCard(panel, apps.Count == 0 ? "Aucune application n'utilise le son pour l'instant" : "L'application n'est pas dans la liste ?",
+            "Actualiser la liste", () =>
+            {
+                panel.Children.Clear();
+                AddAppChoice(panel);
+                MergeHints(panel);
+            }, "Lancez de la musique dans l'application, puis actualisez.", "");
     }
 
     /// <summary>Mises à jour : état, vérification à la demande, installation en un clic.</summary>
     private void BuildUpdates(Panel p)
     {
         p.Children.Add(Section("Mises à jour"));
-        AddToggle(p, "Vérifier les nouvelles versions (GitHub)", S.CheckUpdates, v => S.CheckUpdates = v);
-        var status = new TextBlock { Margin = new Thickness(0, 4, 0, 6), TextWrapping = TextWrapping.Wrap };
-        var buttons = new WrapPanel();
-        p.Children.Add(status);
-        p.Children.Add(buttons);
+        AddToggle(p, "Vérifier automatiquement", S.CheckUpdates, v => S.CheckUpdates = v,
+            "Cherche les nouvelles versions sur GitHub au lancement.", "");
+        var buttons = new StackPanel { Orientation = Orientation.Horizontal };
+        var card = Card(string.Empty, buttons, "", UpdateChecker.IsInstalled
+            ? "La mise à jour s'installe toute seule puis TaskbarVisu redémarre. Vos réglages sont conservés."
+            : "Version portable : la mise à jour ouvre la page de téléchargement.");
+        var title = (TextBlock)((CardParts)card.Tag).Texts.Children[0];
+        p.Children.Add(card);
 
         void Refresh()
         {
-            status.Text = _app.UpdateStatus.Length > 0 ? _app.UpdateStatus : Loc.F("Version installée : {0}", UpdateChecker.CurrentText);
+            title.Text = _app.UpdateStatus.Length > 0 ? _app.UpdateStatus : Loc.F("Version installée : {0}", UpdateChecker.CurrentText);
             buttons.Children.Clear();
-            var check = new Button { Content = Loc.T("Vérifier maintenant"), Margin = new Thickness(0, 0, 8, 0) };
-            check.Click += async (_, _) => await _app.CheckForUpdatesAsync(manual: true);
-            buttons.Children.Add(check);
             if (_app.AvailableUpdate is { } update)
             {
                 var install = new Button
                 {
                     Content = UpdateChecker.IsInstalled ? Loc.F("Installer la version {0}", update.Version) : Loc.T("Ouvrir la page de téléchargement"),
                     Margin = new Thickness(0, 0, 8, 0),
+                    Style = TryFindResource("AccentButtonStyle") as Style,
                 };
                 install.Click += async (_, _) => await _app.InstallUpdateAsync();
-                var skip = new Button { Content = Loc.T("Ignorer cette version") };
+                var skip = new Button { Content = Loc.T("Ignorer cette version"), Margin = new Thickness(0, 0, 8, 0) };
                 skip.Click += (_, _) =>
                 {
                     S.SkippedVersion = update.Tag;
@@ -293,21 +312,21 @@ public partial class SettingsWindow : Window
                 buttons.Children.Add(install);
                 buttons.Children.Add(skip);
             }
+            var check = new Button { Content = Loc.T("Vérifier maintenant") };
+            check.Click += async (_, _) => await _app.CheckForUpdatesAsync(manual: true);
+            buttons.Children.Add(check);
         }
 
         Refresh();
-        // Une seule abonnement à la fois (l'onglet est reconstruit au changement de langue).
+        // Un seul abonnement à la fois (l'onglet est reconstruit au changement de langue).
         if (_updateHandler is not null) _app.UpdateStateChanged -= _updateHandler;
         _updateHandler = () => Dispatcher.BeginInvoke(Refresh);
         _app.UpdateStateChanged += _updateHandler;
-        p.Children.Add(Hint(UpdateChecker.IsInstalled
-            ? "La mise à jour s'installe toute seule puis TaskbarVisu redémarre. Vos réglages sont conservés."
-            : "Version portable : la mise à jour ouvre la page de téléchargement."));
     }
 
     // ---------------------------------------------------------------- Apparence
 
-    /// <summary>Palettes dans l'ordre d'affichage.</summary>
+    /// <summary>Palettes dans l'ordre d'affichage (une seule palette RGB : son animation se règle à part).</summary>
     private static readonly (PaletteChoice Choice, string Name)[] Palettes =
     {
         (PaletteChoice.Magma, "Magma"),
@@ -315,8 +334,7 @@ public partial class SettingsWindow : Window
         (PaletteChoice.Spectral, "Spectrale"),
         (PaletteChoice.Phosphore, "Phosphore"),
         (PaletteChoice.Glace, "Glace"),
-        (PaletteChoice.Rainbow, "Arc-en-ciel RGB"),
-        (PaletteChoice.RainbowAnimated, "Arc-en-ciel animé"),
+        (PaletteChoice.RainbowAnimated, "RGB (arc-en-ciel)"),
         (PaletteChoice.Synthwave, "Synthwave"),
         (PaletteChoice.Vaporwave, "Vaporwave"),
         (PaletteChoice.Toxic, "Toxique"),
@@ -340,17 +358,86 @@ public partial class SettingsWindow : Window
         (ColorChoice.Custom, "Personnalisée"),
     };
 
+    private static readonly string[] AnimationNames =
+    {
+        "Aucune (couleurs fixes)", "Défilement vers les aigus", "Défilement vers les graves", "Une couleur à la fois",
+        "Va-et-vient", "Pulsation (respiration)",
+    };
+
     private void BuildAppearance()
     {
         var p = AppearancePanel;
         p.Children.Clear();
+        PageHeader(p, "Apparence", "Choisissez un style en un clic, puis ajustez les couleurs et les effets si vous le souhaitez.");
 
-        // 1. Préréglages : un clic règle tout le style d'un coup. Grille fixe : les cartes ne bougent pas.
+        // 1. Préréglages : un clic règle tout le style d'un coup.
         p.Children.Add(Section("Préréglages"));
-        p.Children.Add(Hint("Le plus simple : choisissez un style complet en un clic, puis ajustez ci-dessous si besoin."));
-        bool light = Rendering.Theme.SystemUsesLightTheme();
-        var accent = AccentBrush(light);
-        var presets = new System.Windows.Controls.Primitives.UniformGrid { Columns = 4, Margin = new Thickness(0, 4, 0, 4) };
+        p.Children.Add(PresetGrid(4, () => RebuildKeepingScroll(AppearancePanel, BuildAppearance)));
+
+        // 2. Couleurs : palette des données (avec son éditeur), animation, textes et thème.
+        p.Children.Add(Section("Couleurs"));
+        var customPaletteRow = GradientRow("Dégradé personnalisé (grave → aigu)", S.Gradient, g => S.Gradient = g);
+        AddCombo(p, "Palette des données", PaletteOptions(), PaletteIndex(S.Palette), i =>
+        {
+            S.Palette = Palettes[i].Choice;
+            customPaletteRow.Visibility = S.Palette == PaletteChoice.Custom ? Visibility.Visible : Visibility.Collapsed;
+        }, PaletteTemplate(), description: "Colore les barres, courbes et points de tous les modules, du grave à l'aigu. " +
+                                            "Un module peut avoir ses propres couleurs (page Modules).", icon: "");
+        customPaletteRow.Visibility = S.Palette == PaletteChoice.Custom ? Visibility.Visible : Visibility.Collapsed;
+        p.Children.Add(customPaletteRow);
+        AddAnimationControls(p);
+
+        var inkPicker = new ColorPickerButton(S.CustomColor);
+        inkPicker.ColorChanged += hex => { S.CustomColor = hex; Changed(); };
+        var inkRow = Card("Couleur personnalisée", inkPicker, "");
+        void ShowInk() => inkRow.Visibility = S.ColorMode == ColorChoice.Custom ? Visibility.Visible : Visibility.Collapsed;
+        AddCombo(p, "Textes et graduations", Inks.Select(x => x.Name).ToList(),
+            Math.Max(0, Array.FindIndex(Inks, x => x.Choice == S.ColorMode)), i =>
+            {
+                S.ColorMode = Inks[i].Choice;
+                ShowInk();
+            }, description: "Chiffres, lettres, graduations et grilles.", icon: "");
+        ShowInk();
+        p.Children.Add(inkRow);
+        AddCombo(p, "Clair ou sombre", new[] { "Automatique (suit la barre des tâches)", "Sombre", "Clair" },
+            (int)S.Theme, i => S.Theme = (ThemeChoice)i, icon: "");
+
+        // 3. Effets visuels.
+        p.Children.Add(Section("Effets"));
+        AddToggle(p, "Police pixel", S.PixelFont, v => S.PixelFont = v, "Matrice de points 5×7, façon afficheur.", "");
+        AddToggle(p, "Graduations et repères", S.ShowScales, v => S.ShowScales = v, "Étiquettes, grilles et repères techniques.", "");
+        AddToggle(p, "Effet écran à balayage", S.Scanlines, v => S.Scanlines = v, "Une ligne sur deux atténuée, comme un vieil écran (scanlines).", "");
+        AddToggle(p, "Fond écran LCD", S.Background == BackgroundChoice.Lcd,
+            v => S.Background = v ? BackgroundChoice.Lcd : BackgroundChoice.None,
+            "Fond clair olive derrière chaque module, pour le style LCD. Sinon, les modules se fondent dans la barre.", "");
+        AddSlider(p, "Opacité", 20, 100, 5, S.Opacity * 100, v => $"{v:0} %", v => S.Opacity = v / 100, icon: "");
+
+        BuildStyleSharing(p);
+        MergeHints(p);
+    }
+
+    /// <summary>Animation des couleurs (toutes les palettes) : effet, puis durée d'un cycle quand il y a une animation.</summary>
+    private void AddAnimationControls(Panel p)
+    {
+        Border? speed = null;
+        AddCombo(p, "Animation des couleurs", AnimationNames, (int)S.Animation, i =>
+        {
+            S.Animation = (ColorAnimation)i;
+            if (speed is not null) speed.Visibility = S.Animation == ColorAnimation.Still ? Visibility.Collapsed : Visibility.Visible;
+        }, description: "Fait bouger les couleurs de la palette, quelle qu'elle soit (la palette RGB défile par défaut).", icon: "");
+        speed = AddSlider(p, "Durée d'un cycle", 2, 60, 1, S.AnimationSeconds, v => $"{v:0} s", v => S.AnimationSeconds = v,
+            "Plus court = plus rapide.", "");
+        speed.Visibility = S.Animation == ColorAnimation.Still ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    /// <summary>
+    /// Grille des préréglages : cartes à taille fixe, la carte du style actif est entourée.
+    /// Choisir un style ne déplace rien : seul le liseré change de carte.
+    /// </summary>
+    private System.Windows.Controls.Primitives.UniformGrid PresetGrid(int columns, Action? applied)
+    {
+        var accent = AccentBrush(Rendering.Theme.SystemUsesLightTheme());
+        var grid = new System.Windows.Controls.Primitives.UniformGrid { Columns = columns, Margin = new Thickness(0, 0, -8, 0) };
         var current = StylePresets.Current(S);
         foreach (var preset in StylePresets.All)
         {
@@ -359,7 +446,7 @@ public partial class SettingsWindow : Window
                 Children =
                 {
                     PresetPreview(preset, 140, 38),
-                    new TextBlock { Text = Loc.T(preset.Name), Margin = new Thickness(0, 6, 0, 0) },
+                    new TextBlock { Text = Loc.T(preset.Name), Margin = new Thickness(0, 7, 0, 0) },
                 },
             }, ReferenceEquals(preset, current), accent);
             card.Margin = new Thickness(0, 0, 8, 8);
@@ -367,89 +454,19 @@ public partial class SettingsWindow : Window
             {
                 StylePresets.Apply(S, preset);
                 Changed();
-                // Les réglages ci-dessous reflètent le préréglage ; la page reste là où elle était.
-                RebuildKeepingScroll(AppearancePanel, BuildAppearance);
+                SelectCard(grid, card, accent);
+                applied?.Invoke();
             };
-            presets.Children.Add(card);
+            grid.Children.Add(card);
         }
-        p.Children.Add(presets);
-
-        // 2. Couleurs : palette des données (avec son éditeur ou son animation), puis textes et thème.
-        p.Children.Add(Section("Couleurs"));
-        var customPaletteRow = GradientRow("Dégradé personnalisé (grave → aigu)", S.Gradient, g => S.Gradient = g);
-        var rgbPanel = RgbAnimationPanel();
-        void ShowPaletteExtras()
-        {
-            customPaletteRow.Visibility = S.Palette == PaletteChoice.Custom ? Visibility.Visible : Visibility.Collapsed;
-            rgbPanel.Visibility = S.Palette == PaletteChoice.RainbowAnimated ? Visibility.Visible : Visibility.Collapsed;
-        }
-        AddCombo(p, "Palette des données", PaletteOptions(), PaletteIndex(S.Palette), i =>
-        {
-            S.Palette = Palettes[i].Choice;
-            ShowPaletteExtras();
-        }, PaletteTemplate());
-        ShowPaletteExtras();
-        p.Children.Add(Hint("Colore les barres, courbes et points de tous les modules, du grave à l'aigu. " +
-                            "Un module peut avoir ses propres couleurs (onglet Modules)."));
-        p.Children.Add(customPaletteRow);
-        p.Children.Add(rgbPanel);
-
-        var inkPicker = new ColorPickerButton(S.CustomColor);
-        inkPicker.ColorChanged += hex => { S.CustomColor = hex; Changed(); };
-        var inkRow = Labeled("Couleur personnalisée", inkPicker);
-        void ShowInk() => inkRow.Visibility = S.ColorMode == ColorChoice.Custom ? Visibility.Visible : Visibility.Collapsed;
-        AddCombo(p, "Textes et graduations", Inks.Select(x => x.Name).ToList(),
-            Math.Max(0, Array.FindIndex(Inks, x => x.Choice == S.ColorMode)), i =>
-            {
-                S.ColorMode = Inks[i].Choice;
-                ShowInk();
-            });
-        ShowInk();
-        p.Children.Add(inkRow);
-        AddCombo(p, "Clair ou sombre", new[] { "Automatique (suit la barre des tâches)", "Sombre", "Clair" },
-            (int)S.Theme, i => S.Theme = (ThemeChoice)i);
-
-        // 3. Effets visuels.
-        p.Children.Add(Section("Effets"));
-        AddToggle(p, "Police pixel (matrice de points 5×7, façon afficheur)", S.PixelFont, v => S.PixelFont = v);
-        AddToggle(p, "Graduations, étiquettes et repères techniques", S.ShowScales, v => S.ShowScales = v);
-        AddToggle(p, "Effet écran à balayage (scanlines)", S.Scanlines, v => S.Scanlines = v);
-        AddToggle(p, "Fond écran LCD (clair olive, va avec la palette LCD)", S.Background == BackgroundChoice.Lcd,
-            v => S.Background = v ? BackgroundChoice.Lcd : BackgroundChoice.None);
-        AddSlider(p, "Opacité", 20, 100, 5, S.Opacity * 100, v => $"{v:0} %", v => S.Opacity = v / 100);
-
-        BuildStyleSharing(p);
-    }
-
-    /// <summary>Animation de la palette RGB : effet et vitesse, montrés seulement quand la palette RGB est choisie.</summary>
-    private FrameworkElement RgbAnimationPanel()
-    {
-        var panel = new StackPanel();
-        AddCombo(panel, "Animation RGB", new[]
-        {
-            "Défilement vers les aigus", "Défilement vers les graves", "Une couleur à la fois",
-            "Va-et-vient", "Pulsation (respiration)", "Fixe (pas d'animation)",
-        }, (int)S.RgbEffect, i => S.RgbEffect = (RgbEffect)i);
-        AddSlider(panel, "Durée d'un cycle", 2, 60, 1, S.RgbSeconds, v => $"{v:0} s", v => S.RgbSeconds = v);
-        panel.Children.Add(Hint("Plus court = plus rapide. S'applique aussi aux modules qui ont leur propre palette RGB."));
-        return panel;
-    }
-
-    /// <summary>Reconstruit une page sans la faire remonter tout en haut.</summary>
-    private void RebuildKeepingScroll(Panel page, Action build)
-    {
-        var scroll = page.Parent as ScrollViewer;
-        double offset = scroll?.VerticalOffset ?? 0;
-        build();
-        if (scroll is not null)
-            Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() => scroll.ScrollToVerticalOffset(offset)));
+        return grid;
     }
 
     /// <summary>Partager un style : code court à coller (Discord…) ou fichier .tbvstyle.</summary>
     private void BuildStyleSharing(Panel page)
     {
-        var p = new StackPanel { Margin = new Thickness(4, 6, 0, 4) };
-        page.Children.Add(Folded("appearance.share", "Partager un style (code à coller ou fichier)", p, new Thickness(0, 20, 0, 0)));
+        var p = new StackPanel { Margin = new Thickness(0, 4, 0, 0) };
+        page.Children.Add(Folded("appearance.share", "Partager un style (code à coller ou fichier)", p, new Thickness(0, 22, 0, 0)));
         var buttons = new WrapPanel();
         var feedback = new TextBlock { Opacity = 0.8, Margin = new Thickness(0, 4, 0, 0), TextWrapping = TextWrapping.Wrap };
 
@@ -467,7 +484,7 @@ public partial class SettingsWindow : Window
             }
         }
 
-        Button Make(string text, Action action)
+        void Make(string text, Action action)
         {
             var b = new Button { Content = Loc.T(text), Margin = new Thickness(0, 0, 8, 6) };
             b.Click += (_, _) =>
@@ -484,7 +501,6 @@ public partial class SettingsWindow : Window
                 }
             };
             buttons.Children.Add(b);
-            return b;
         }
 
         Make("Copier le code du style", () =>
@@ -506,9 +522,9 @@ public partial class SettingsWindow : Window
             if (dialog.ShowDialog(this) != true) return;
             Applied(StyleCode.TryApply(File.ReadAllText(dialog.FileName), S));
         });
-        p.Children.Add(buttons);
-        p.Children.Add(feedback);
-        p.Children.Add(Hint("Le style comprend la palette, les effets, le fond et les couleurs de chaque module (pas la disposition)."));
+        var body = new StackPanel { Children = { buttons, feedback } };
+        var card = WideCard("Le style comprend la palette, les effets, le fond et les couleurs de chaque module (pas la disposition).", body, "");
+        p.Children.Add(card);
     }
 
     private sealed record PaletteOption(string Name, Brush Preview);
@@ -530,8 +546,8 @@ public partial class SettingsWindow : Window
         return brush;
     }
 
-    /// <summary>Ligne « dégradé personnalisé » : éditeur + mode d'emploi en une ligne.</summary>
-    private FrameworkElement GradientRow(string label, List<ColorStop> stops, Action<List<ColorStop>> set)
+    /// <summary>Carte « dégradé personnalisé » : éditeur + mode d'emploi.</summary>
+    private Border GradientRow(string label, List<ColorStop> stops, Action<List<ColorStop>> set)
     {
         var sources = Palettes.Where(x => x.Choice != PaletteChoice.Custom).ToArray();
         var options = sources.Select(x => new PaletteOption(Loc.T(x.Name), PaletteBrush(x.Choice))).ToList();
@@ -541,14 +557,8 @@ public partial class SettingsWindow : Window
             Changed();
         }, options, PaletteTemplate(), i => Rendering.Theme.ToGradient(S, sources[i].Choice));
         var body = new StackPanel { Children = { editor } };
-        body.Children.Add(Hint("Cliquez sur la barre pour ajouter une couleur (8 au plus), glissez les repères pour les déplacer, clic droit pour en retirer."));
-        var row = Labeled(label, body);
-        if (row.Children[0] is TextBlock text)
-        {
-            text.VerticalAlignment = VerticalAlignment.Top;
-            text.Margin = new Thickness(0, 6, 12, 0);
-        }
-        return row;
+        body.Children.Add(Description(Loc.T("Cliquez sur la barre pour ajouter une couleur (8 au plus), glissez les repères pour les déplacer, clic droit pour en retirer.")));
+        return WideCard(label, body, "");
     }
 
     /// <summary>Élément de liste : aperçu du dégradé + nom.</summary>
@@ -577,7 +587,7 @@ public partial class SettingsWindow : Window
     {
         var p = ModulesPanel;
         p.Children.Clear();
-        p.Children.Add(Hint("Cliquez sur un module pour voir ses réglages. Les changements s'appliquent immédiatement sur la barre des tâches."));
+        PageHeader(p, "Modules", "Les réglages de chaque visualiseur. Cliquez sur un module pour les voir ; tout s'applique tout de suite.");
         _moduleExpanders.Clear();
 
         // D'abord les modules affichés, dans l'ordre de la barre, puis ceux qui sont masqués.
@@ -585,27 +595,29 @@ public partial class SettingsWindow : Window
         var shown = ordered.Where(x => x.Cfg.Enabled).ToList();
         var hidden = ordered.Where(x => !x.Cfg.Enabled).ToList();
         p.Children.Add(Section("Sur la barre"));
-        if (shown.Count == 0) p.Children.Add(Hint("Aucun module affiché : ajoutez-en depuis l'onglet Disposition."));
+        if (shown.Count == 0) p.Children.Add(Card("Aucun module affiché : ajoutez-en depuis la page Disposition.", null, ""));
         foreach (var (cfg, side) in shown) AddModuleExpander(p, cfg, side);
         if (hidden.Count > 0)
         {
             p.Children.Add(Section("Masqués"));
-            p.Children.Add(Hint("Disponibles mais pas affichés. Leurs réglages sont conservés."));
             foreach (var (cfg, side) in hidden) AddModuleExpander(p, cfg, side);
         }
+        MergeHints(p);
     }
 
     private void AddModuleExpander(Panel p, ModuleConfig cfg, string side)
     {
         var info = ModuleCatalog.Find(cfg.Id)!;
-        var body = new StackPanel { Margin = new Thickness(8, 4, 0, 10) };
-        body.Children.Add(Hint(info.Description));
+        var body = new StackPanel { Margin = new Thickness(0, 4, 0, 6) };
+        var about = Description(Loc.T(info.Description));
+        about.Margin = new Thickness(2, 0, 0, 10);
+        body.Children.Add(about);
         if (!cfg.Enabled)
         {
             var show = new Button
             {
                 Content = Loc.T("Afficher sur la barre"), HorizontalAlignment = HorizontalAlignment.Left,
-                Margin = new Thickness(0, 0, 0, 8), Style = TryFindResource("AccentButtonStyle") as Style,
+                Margin = new Thickness(0, 0, 0, 10), Style = TryFindResource("AccentButtonStyle") as Style,
             };
             show.Click += (_, _) =>
             {
@@ -624,19 +636,9 @@ public partial class SettingsWindow : Window
         var advanced = info.Options.Where(o => o.Advanced).ToList();
         if (advanced.Count > 0)
         {
-            var more = new StackPanel { Margin = new Thickness(4, 2, 0, 0) };
+            var more = new StackPanel { Margin = new Thickness(0, 4, 0, 0) };
             foreach (var opt in advanced) AddOption(more, cfg, opt);
-            string moreKey = cfg.Id + ".more";
-            var moreExpander = new Expander
-            {
-                Header = Loc.T("Plus d'options"),
-                Content = more,
-                IsExpanded = _expanded.Contains(moreKey),
-                Margin = new Thickness(0, 6, 0, 0),
-            };
-            moreExpander.Expanded += (_, _) => _expanded.Add(moreKey);
-            moreExpander.Collapsed += (_, _) => _expanded.Remove(moreKey);
-            body.Children.Add(moreExpander);
+            body.Children.Add(Folded(cfg.Id + ".more", "Plus d'options", more, new Thickness(0, 6, 0, 0)));
         }
 
         var reset = new Button { Content = Loc.T("Réinitialiser ce module"), HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 10, 0, 0) };
@@ -652,16 +654,42 @@ public partial class SettingsWindow : Window
 
         var expander = new Expander
         {
-            Header = cfg.Enabled && !CentreMode(_app.Tracker.Current) ? $"{Loc.T(info.Name)}   ·   {Loc.T(side)}" : Loc.T(info.Name),
+            Header = ModuleHeader(cfg, info, cfg.Enabled && !CentreMode(_app.Tracker.Current) ? side : null),
             Content = body,
             IsExpanded = _expanded.Contains(cfg.Id),
-            Margin = new Thickness(0, 4, 0, 4),
+            Margin = new Thickness(0, 0, 0, 4),
             HorizontalAlignment = HorizontalAlignment.Stretch,
+            HorizontalContentAlignment = HorizontalAlignment.Stretch,
         };
         expander.Expanded += (_, _) => _expanded.Add(cfg.Id);
         expander.Collapsed += (_, _) => _expanded.Remove(cfg.Id);
         _moduleExpanders[cfg.Id] = expander;
         p.Children.Add(expander);
+    }
+
+    /// <summary>En-tête d'un module : pastille à ses couleurs, nom, et zone de la barre.</summary>
+    private FrameworkElement ModuleHeader(ModuleConfig cfg, ModuleInfo info, string? side)
+    {
+        var palette = cfg.Colors == ModuleColorMode.Palette ? cfg.ColorPalette : S.Palette;
+        var swatch = new Border
+        {
+            Width = 28, Height = 8, CornerRadius = new CornerRadius(4), Margin = new Thickness(0, 0, 14, 0),
+            VerticalAlignment = VerticalAlignment.Center, Opacity = cfg.Enabled ? 1 : 0.45,
+            Background = cfg.Colors == ModuleColorMode.Solid
+                ? new SolidColorBrush(ToColor(cfg.ColorSolid))
+                : PaletteBrush(palette, cfg.Colors == ModuleColorMode.Palette ? cfg.Gradient : null),
+        };
+        var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 4) };
+        row.Children.Add(swatch);
+        row.Children.Add(new TextBlock { Text = Loc.T(info.Name), FontSize = 14, VerticalAlignment = VerticalAlignment.Center });
+        if (side is not null)
+        {
+            var where = Description(Loc.T(side));
+            where.Margin = new Thickness(12, 0, 0, 0);
+            where.VerticalAlignment = VerticalAlignment.Center;
+            row.Children.Add(where);
+        }
+        return row;
     }
 
     /// <summary>Ligne « Couleurs » d'un module : générales, une autre palette, ou une couleur unie.</summary>
@@ -670,19 +698,17 @@ public partial class SettingsWindow : Window
         var palettePanel = new StackPanel();
         // Palette « Personnalisée » : dégradé propre au module (au départ, celui de l'apparence générale).
         var gradientRow = GradientRow("Dégradé du module", cfg.Gradient ?? S.Gradient, g => cfg.Gradient = g);
-        void ShowGradient() => gradientRow.Visibility =
-            cfg.ColorPalette == PaletteChoice.Custom ? Visibility.Visible : Visibility.Collapsed;
         AddCombo(palettePanel, "Palette du module", PaletteOptions(), PaletteIndex(cfg.ColorPalette), i =>
         {
             cfg.ColorPalette = Palettes[i].Choice;
-            ShowGradient();
-        }, PaletteTemplate());
+            gradientRow.Visibility = cfg.ColorPalette == PaletteChoice.Custom ? Visibility.Visible : Visibility.Collapsed;
+        }, PaletteTemplate(), icon: "");
         palettePanel.Children.Add(gradientRow);
-        ShowGradient();
+        gradientRow.Visibility = cfg.ColorPalette == PaletteChoice.Custom ? Visibility.Visible : Visibility.Collapsed;
 
         var picker = new ColorPickerButton(cfg.ColorSolid);
         picker.ColorChanged += hex => { cfg.ColorSolid = hex; Changed(); };
-        var solidRow = Labeled("Couleur du module", picker);
+        var solidRow = Card("Couleur du module", picker, "");
 
         void Show()
         {
@@ -695,7 +721,7 @@ public partial class SettingsWindow : Window
             {
                 cfg.Colors = (ModuleColorMode)i;
                 Show();
-            });
+            }, icon: "");
         panel.Children.Add(palettePanel);
         panel.Children.Add(solidRow);
         Show();
@@ -720,20 +746,14 @@ public partial class SettingsWindow : Window
                     cfg.Options[opt.Key] = Convert.ToInt32(hex.TrimStart('#'), 16);
                     Changed();
                 };
-                panel.Children.Add(Labeled(opt.Label, picker));
+                panel.Children.Add(Card(opt.Label, picker));
                 break;
             default:
                 AddSlider(panel, opt.Label, opt.Min, opt.Max, opt.Step, cfg.Get(opt.Key),
                     v => FormatValue(v, opt), v => cfg.Options[opt.Key] = v);
                 break;
         }
-        if (opt.Help is not null)
-        {
-            var help = Hint(opt.Help);
-            help.Margin = new Thickness(opt.Kind == OptionKind.Toggle ? 28 : 0, -2, 0, 6);
-            help.FontSize = 12;
-            panel.Children.Add(help);
-        }
+        if (opt.Help is not null) panel.Children.Add(Hint(opt.Help));
     }
 
     private static string FormatValue(double v, OptionDef opt)
@@ -742,7 +762,7 @@ public partial class SettingsWindow : Window
         return opt.Unit is null ? number : $"{number} {opt.Unit}";
     }
 
-    // ---------------------------------------------------------------- Pied de fenêtre
+    // ---------------------------------------------------------------- État
 
     private void UpdateStatus()
     {
@@ -754,11 +774,12 @@ public partial class SettingsWindow : Window
         if (_app.VisualsHidden) barText = Loc.T("Masqués (raccourci) · ") + barText;
         RefreshMiniIfBarChanged();
         RefreshWelcomeZones();
+        RefreshHome();
         StatusText.Text = (_app.IsPaused ? Loc.T("En pause · ") : string.Empty)
                           + Loc.F("Audio : {0}", _app.Audio.StatusText) + "   ·   " + barText;
     }
 
-    private void OnResetAll(object sender, RoutedEventArgs e)
+    private void ResetAll()
     {
         var answer = MessageBox.Show(this, Loc.T("Remettre tous les réglages et la disposition par défaut ?"),
             "TaskbarVisu", MessageBoxButton.YesNo, MessageBoxImage.Question);
@@ -772,134 +793,5 @@ public partial class SettingsWindow : Window
         _selected = null;
         RebuildAll();
         Changed();
-    }
-
-    private void OnCloseClick(object sender, RoutedEventArgs e) => Close();
-
-    // ---------------------------------------------------------------- Fabrique de contrôles
-
-    /// <summary>Bloc repliable dont l'état (ouvert / fermé) survit aux reconstructions de la page.</summary>
-    private Expander Folded(string key, string header, UIElement content, Thickness margin)
-    {
-        var expander = new Expander
-        {
-            Header = Loc.T(header),
-            Content = content,
-            IsExpanded = _expanded.Contains(key),
-            Margin = margin,
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-        };
-        expander.Expanded += (_, _) => _expanded.Add(key);
-        expander.Collapsed += (_, _) => _expanded.Remove(key);
-        return expander;
-    }
-
-    private static TextBlock Section(string title) => new()
-    {
-        Text = Loc.T(title),
-        FontSize = 18,
-        FontWeight = FontWeights.SemiBold,
-        Margin = new Thickness(0, 18, 0, 6),
-    };
-
-    private static TextBlock Hint(string text) => new()
-    {
-        Text = Loc.T(text),
-        Opacity = 0.7,
-        TextWrapping = TextWrapping.Wrap,
-        Margin = new Thickness(0, 2, 0, 8),
-    };
-
-    private static Grid Labeled(string label, FrameworkElement control, FrameworkElement? trailing = null)
-    {
-        var grid = new Grid { Margin = new Thickness(0, 4, 0, 4) };
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(250) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(trailing is null ? 0 : 90) });
-
-        var text = new TextBlock
-        {
-            Text = Loc.T(label),
-            VerticalAlignment = VerticalAlignment.Center,
-            TextWrapping = TextWrapping.Wrap,
-            Margin = new Thickness(0, 0, 12, 0),
-        };
-        grid.Children.Add(text);
-        Grid.SetColumn(control, 1);
-        grid.Children.Add(control);
-        if (trailing is not null)
-        {
-            Grid.SetColumn(trailing, 2);
-            grid.Children.Add(trailing);
-        }
-        return grid;
-    }
-
-    private void AddToggle(Panel panel, string label, bool value, Action<bool> set)
-    {
-        var check = new CheckBox { Content = Loc.T(label), IsChecked = value, Margin = new Thickness(0, 5, 0, 5) };
-        check.Checked += (_, _) => { set(true); Changed(); };
-        check.Unchecked += (_, _) => { set(false); Changed(); };
-        panel.Children.Add(check);
-    }
-
-    private void AddSlider(Panel panel, string label, double min, double max, double step, double value,
-        Func<double, string> format, Action<double> set)
-    {
-        var valueText = new TextBlock
-        {
-            Text = format(value),
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(12, 0, 0, 0),
-            Opacity = 0.8,
-        };
-        var slider = new Slider
-        {
-            Minimum = min,
-            Maximum = max,
-            Value = Math.Clamp(value, min, max),
-            TickFrequency = step,
-            IsSnapToTickEnabled = true,
-            SmallChange = step,
-            LargeChange = step * 4,
-            VerticalAlignment = VerticalAlignment.Center,
-        };
-        slider.ValueChanged += (_, e) =>
-        {
-            valueText.Text = format(e.NewValue);
-            set(e.NewValue);
-            Changed();
-        };
-        panel.Children.Add(Labeled(label, slider, valueText));
-    }
-
-    private void AddCombo(Panel panel, string label, System.Collections.IList items, int index, Action<int> set,
-        DataTemplate? template = null, bool translate = true)
-    {
-        // Les listes de textes sont traduites ici (sauf celles déjà mises en forme par l'appelant).
-        if (translate && items is IEnumerable<string> texts) items = texts.Select(Loc.T).ToList();
-        var combo = new ComboBox
-        {
-            ItemsSource = items,
-            ItemTemplate = template,
-            SelectedIndex = Math.Clamp(index, 0, Math.Max(0, items.Count - 1)),
-            MinWidth = 260,
-            HorizontalAlignment = HorizontalAlignment.Left,
-        };
-        combo.SelectionChanged += (_, _) =>
-        {
-            if (combo.SelectedIndex < 0) return;
-            set(combo.SelectedIndex);
-            Changed();
-        };
-        panel.Children.Add(Labeled(label, combo));
-    }
-
-    private static int NearestIndex(int[] values, int value)
-    {
-        int best = 0;
-        for (int i = 1; i < values.Length; i++)
-            if (Math.Abs(values[i] - value) < Math.Abs(values[best] - value)) best = i;
-        return best;
     }
 }

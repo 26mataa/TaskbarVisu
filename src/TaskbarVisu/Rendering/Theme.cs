@@ -39,7 +39,9 @@ internal sealed class Theme
     public float Phase { get; set; }
 
     /// <summary>Façon dont la palette animée bouge.</summary>
-    public RgbEffect Effect { get; private set; }
+    public ColorAnimation Effect { get; private set; }
+
+    private bool _cyclic;
 
     private (float T, SKColor C)[] _palette = Array.Empty<(float, SKColor)>();
     private readonly SKColor[] _spectral = new SKColor[256];
@@ -86,15 +88,17 @@ internal sealed class Theme
         theme.SetInk(baseInk);
 
         var choice = palette ?? s.Palette;
-        theme.Animated = solid is null && choice == PaletteChoice.RainbowAnimated;
-        theme.Effect = s.RgbEffect;
+        // La palette RGB est un cercle chromatique (la fin rejoint le début) : elle passe toujours par le chemin animé.
+        theme._cyclic = choice == PaletteChoice.RainbowAnimated;
+        theme.Effect = s.Animation;
+        theme.Animated = solid is null && (theme._cyclic || s.Animation != ColorAnimation.Still);
         theme._palette = solid is { } c ? MonoStops(c) : theme.Stops(choice);
         // Le bas des palettes intégrées (très sombre) ne sert qu'aux fonds du spectrogramme ;
         // un dégradé personnalisé est visible en entier, comme dans son éditeur.
         float start = solid is null && choice == PaletteChoice.Custom ? 0f : VisibleStart;
         for (int i = 0; i < 256; i++)
         {
-            float t = theme.Animated ? i / 256f : start + (1 - start) * i / 255f;
+            float t = theme._cyclic && solid is null ? i / 256f : start + (1 - start) * i / 255f;
             theme._spectral[i] = Sample(theme._palette, t);
         }
 
@@ -127,18 +131,33 @@ internal sealed class Theme
         return _spectral[(int)(t * 255)];
     }
 
+    /// <summary>
+    /// Couleur animée. La palette RGB tourne en boucle ; les autres palettes (grave sombre → aigu clair)
+    /// font l'aller-retour, pour bouger sans saut de couleur.
+    /// </summary>
     private SKColor AnimatedColor(float t)
     {
+        float span = _cyclic ? 0.85f : 1f, travel = _cyclic ? 1f : 2f;
         float u = Effect switch
         {
-            RgbEffect.FlowReverse => t * 0.85f - Phase,
-            RgbEffect.Cycle => t * 0.12f + Phase,
-            RgbEffect.Bounce => t * 0.85f + 0.3f * MathF.Sin(Phase * MathF.Tau),
-            RgbEffect.Pulse or RgbEffect.Still => t * 0.85f,
-            _ => t * 0.85f + Phase,
+            ColorAnimation.FlowReverse => t * span - Phase * travel,
+            ColorAnimation.Cycle => t * span * 0.12f + Phase * travel,
+            ColorAnimation.Bounce => t * span + 0.3f * MathF.Sin(Phase * MathF.Tau),
+            ColorAnimation.Pulse or ColorAnimation.Still => t * span,
+            _ => t * span + Phase * travel,
         };
-        var c = _spectral[(int)((u - MathF.Floor(u)) * 255.999f)];
-        if (Effect != RgbEffect.Pulse) return c;
+        float position;
+        if (_cyclic)
+        {
+            position = u - MathF.Floor(u);
+        }
+        else
+        {
+            float m = u - 2 * MathF.Floor(u / 2);
+            position = m > 1 ? 2 - m : m;
+        }
+        var c = _spectral[(int)(Math.Clamp(position, 0, 1) * 255.999f)];
+        if (Effect != ColorAnimation.Pulse) return c;
         // Respiration : de 35 % à 100 % de luminosité.
         float k = 0.35f + 0.65f * (0.5f + 0.5f * MathF.Cos(Phase * MathF.Tau));
         return Scale(c, k);

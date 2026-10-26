@@ -23,11 +23,12 @@ posés dans les espaces libres à gauche et à droite des icônes, sans cadre.
 | **Accordeur** | 2 modes : note + justesse (±50 cents), tonalité (gamme) avec confiance et, pour un morceau modal, sa note centrale (« ◆F MIX ») ; mini-piano LED, notation C D E, Do Ré Mi ou Camelot ; en option, les tonalités précédentes du morceau (« <C <Aᵐ ») |
 | **Piano roll** | Notes réellement entendues, octave comprise, justes à quelques cents (analyse dédiée en deux résolutions), sur un clavier de 3 à 6 octaves ; leur historique défile au-dessus (couleur selon la hauteur ou l'intensité, clavier en bas ou en haut) |
 | **Oscilloscope XY** | Goniomètre (milieu / côtés) ou Lissajous (gauche / droite) tracé en phosphore qui s'éteint lentement, réticule gradué |
+| **Oscilloscope Aero** | L'onde dans une bulle de verre brillante façon Frutiger Aero : des bulles montent avec le volume, des notes ♪, étincelles et gouttes jaillissent sur les temps forts (aqua, vert pomme ou couleurs de la palette) |
 | **Données brutes** | Les échantillons tels que la carte son les voit : lignes hexadécimales qui défilent ou matrice de bits. Purement expérimental |
 
 Disposition par défaut : niveaux, spectrogramme et spectre à gauche ; imageur, accordeur et forme d'onde
-à droite. VU-mètre, historique de sonie, piano roll, oscilloscope XY et données brutes
-sont disponibles mais masqués (onglet Disposition). Au lancement, chaque module fait un court
+à droite. VU-mètre, historique de sonie, piano roll, oscilloscopes XY et Aero, données brutes
+sont disponibles mais masqués (page Disposition). Au lancement, chaque module fait un court
 *self-test* (balayage LED, « OK ») avant de s'allumer ; désactivable dans Général.
 
 ### Détection de tonalité
@@ -128,12 +129,12 @@ la trace liste aussi les pics de chaque image (fréquence:amplitude:part non exp
   et trois afficheurs matériels : VFD (tube fluorescent cyan), LCD (encre sombre sur fond olive), Nixie
   (tubes orange).
 - Police pixel 5×7 (ou monospace lissée), graduations et repères techniques, effet scanlines.
-- Palette : Magma, Brasier, Spectrale, Phosphore, Glace, Arc-en-ciel RGB, Arc-en-ciel animé, Synthwave,
+- Palette : Magma, Brasier, Spectrale, Phosphore, Glace, RGB (arc-en-ciel), Synthwave,
   Vaporwave, Toxique, Chrome Y2K, VFD, LCD, Nixie, Monochrome, accentuation Windows ou dégradé
   personnalisé (grave → aigu) de 2 à 8 couleurs : clic sur la barre pour ajouter une couleur, repères à
   glisser, clic droit pour retirer, inversion, point de départ pris d'une palette existante.
-- Animation RGB réglable : défilement vers les aigus ou les graves, une couleur à la fois, va-et-vient,
-  pulsation ou fixe, avec la durée du cycle (2 à 60 s).
+- Animation des couleurs, pour toutes les palettes : défilement vers les aigus ou les graves, une couleur à la fois, va-et-vient,
+  pulsation ou aucune, avec la durée du cycle (2 à 60 s). La palette RGB défile par défaut.
 - Textes et repères : lavande, teintés par la palette, accentuation Windows ou couleur choisie au sélecteur.
 - Chaque module peut avoir ses propres couleurs : une autre palette, son propre dégradé ou une couleur unie.
 - Pas de fond : les modules se fondent dans la barre (fond écran LCD olive clair en option, pour le style LCD).
@@ -196,12 +197,15 @@ sont dans `Core/Loc.cs` (le texte français sert de clé).
 
 ## Réglages
 
-Clic sur l'icône de la zone de notification → fenêtre de réglages (style Windows 11) :
+Clic sur l'icône de la zone de notification → fenêtre de réglages, comme les Paramètres de Windows 11 :
+menu à gauche, et chaque réglage est une carte avec une icône et une phrase d'explication.
 
+- **Accueil** : ce qui est écouté, la place libre sur la barre, boutons Masquer / Pause, les styles en un
+  clic, les modules affichés (un clic ouvre le module dans Disposition) et les raccourcis utiles.
 - **Général** : démarrage (avec Windows, fermer vers la zone de notification, animation d'allumage),
   source audio, langue, écran (principal, tous, ou un écran précis), plein écran, raccourci clavier,
   mises à jour, i/s, résolution FFT, économie d'énergie, dossier des réglages.
-- **Apparence** : préréglages en cartes (le style actif est entouré), couleurs (palette, animation RGB,
+- **Apparence** : préréglages en cartes (le style actif est entouré), couleurs (palette, animation des couleurs,
   textes, clair / sombre), effets, partage de style replié.
 - **Disposition** : la barre des tâches en miniature, modules à l'échelle et place restante par zone.
   Un clic sur un module ouvre ses réglages (largeur de 60 à 400 px, décaler, changer de côté, retirer,
@@ -210,8 +214,8 @@ Clic sur l'icône de la zone de notification → fenêtre de réglages (style Wi
   placement, espacement, fondu, marge verticale).
 - **Guide de démarrage** : au premier lancement, cinq étapes avec « Passer » toujours visible. Les zones
   libres clignotent sur la vraie barre, choix d'une ambiance (préréglage) et d'un pack de modules
-  (Studio, Musicien, Minimal ou « Je choisis moi-même »), source audio, démarrage et raccourci, puis une
-  flèche sur la barre montre l'icône de la zone de notification. Il se rejoue depuis Général.
+  (Studio, Musicien, Minimal ou « Je choisis moi-même », qui part d'une barre vide), source audio, démarrage et raccourci, puis une
+  flèche sur la barre montre l'icône de la zone de notification. Il se rejoue depuis Accueil ou Général.
 
   ![Guide de démarrage](docs/welcome.png)
 

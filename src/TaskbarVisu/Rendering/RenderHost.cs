@@ -394,10 +394,10 @@ internal sealed partial class RenderHost : IDisposable
     private Theme ThemeFor(VisualizerModule module) =>
         _moduleThemes.TryGetValue(module.Info.Id, out var theme) ? theme : _globalTheme;
 
-    /// <summary>Fait tourner les palettes animées (un cycle toutes les RgbSeconds secondes).</summary>
+    /// <summary>Fait tourner les palettes animées (un cycle toutes les AnimationSeconds secondes).</summary>
     private void AnimateThemes(double now)
     {
-        float phase = _settings.RgbEffect == RgbEffect.Still ? 0 : (float)(now / _settings.RgbSeconds % 1.0);
+        float phase = _settings.Animation == ColorAnimation.Still ? 0 : (float)(now / _settings.AnimationSeconds % 1.0);
         _globalTheme.Phase = phase;
         foreach (var theme in _moduleThemes.Values) theme.Phase = phase;
     }

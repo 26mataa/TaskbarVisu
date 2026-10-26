@@ -272,9 +272,11 @@ public partial class App : Application
             }
             if (_dumpDirectory is { } dumpDir)
             {
-                var picker = window.AppearancePanel.Children.OfType<System.Windows.Controls.Panel>()
-                    .SelectMany(p => p.Children.OfType<ColorPickerButton>()).FirstOrDefault();
-                picker?.RenderPreview(Path.Combine(dumpDir, "colorpicker.png"));
+                // Le sélecteur est rangé dans une carte : on le cherche dans tout l'arbre logique de la page.
+                static ColorPickerButton? FindPicker(object node) => node is ColorPickerButton found ? found
+                    : node is DependencyObject d ? LogicalTreeHelper.GetChildren(d).Cast<object>().Select(FindPicker).FirstOrDefault(x => x is not null)
+                    : null;
+                FindPicker(window.AppearancePanel)?.RenderPreview(Path.Combine(dumpDir, "colorpicker.png"));
             }
             // Guide de démarrage : une capture par étape (welcome-1.png…).
             window.ShowWelcome();

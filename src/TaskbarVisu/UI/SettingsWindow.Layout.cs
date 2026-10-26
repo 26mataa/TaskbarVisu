@@ -50,8 +50,9 @@ public partial class SettingsWindow
         if (_selected is not null && !S.AllModules.Contains(_selected)) _selected = null;
 
         var bar = _app.Tracker.Current;
-        p.Children.Add(Hint("Votre barre des tâches en miniature, avec les modules affichés à l'échelle. " +
-                            "Cliquez sur un module pour le régler, glissez-le pour le déplacer."));
+        PageHeader(p, "Disposition", "Votre barre des tâches en miniature, avec les modules affichés à l'échelle. " +
+                                     "Cliquez sur un module pour le régler, glissez-le pour le déplacer.");
+        p.Children.Add(Section("Votre barre"));
 
         // Icônes alignées à gauche : un seul grand espace, le choix principal se fait ici.
         if (bar.Valid && !bar.Spanning.IsEmpty)
@@ -61,7 +62,7 @@ public partial class SettingsWindow
                 {
                     S.SingleGap = (SingleGapMode)i;
                     Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(BuildLayout));
-                });
+                }, description: "Vos icônes sont alignées à gauche : il n'y a qu'un grand espace libre.", icon: "");
         }
 
         _mini = new Canvas { Height = MiniHeight, ClipToBounds = true, Background = Brushes.Transparent };
@@ -91,6 +92,7 @@ public partial class SettingsWindow
 
         BuildGallery(p);
         BuildFineTuning(p);
+        MergeHints(p);
         DrawMini();
     }
 
@@ -378,7 +380,9 @@ public partial class SettingsWindow
         var cfg = _selected;
         if (cfg is null || !cfg.Enabled)
         {
-            p.Children.Add(Hint("Cliquez sur un module de la barre pour régler sa largeur, le déplacer ou le retirer."));
+            p.Children.Add(Card(S.AllModules.Any(m => m.Enabled)
+                ? "Cliquez sur un module de la barre pour régler sa largeur, le déplacer ou le retirer."
+                : "La barre est vide : ajoutez un premier module ci-dessous.", null, ""));
             return;
         }
 
@@ -392,12 +396,14 @@ public partial class SettingsWindow
             Text = centre ? Loc.T(info.Name) : $"{Loc.T(info.Name)}   ·   {Loc.T(left ? "zone gauche" : "zone droite")}",
             FontWeight = FontWeights.SemiBold, FontSize = 15, Margin = new Thickness(0, 0, 0, 2),
         });
-        body.Children.Add(Hint(info.Description));
+        var about = Description(Loc.T(info.Description));
+        about.Margin = new Thickness(0, 0, 0, 10);
+        body.Children.Add(about);
         AddSlider(body, "Largeur", info.MinWidth, AppSettings.MaxModuleWidth, 5, cfg.Width, v => $"{v:0} px", v =>
         {
             cfg.Width = (int)v;
             DrawMini();
-        });
+        }, icon: "");
 
         // Ordre d'affichage de la zone du module (les deux listes à la suite au centre).
         var sequence = _zones.FirstOrDefault(z => z.Shown.Contains(cfg))?.Shown ?? new List<ModuleConfig>();
@@ -449,15 +455,10 @@ public partial class SettingsWindow
         });
         body.Children.Add(buttons);
 
-        p.Children.Add(new Border
-        {
-            Padding = new Thickness(14, 10, 14, 6),
-            CornerRadius = new CornerRadius(8),
-            Background = new SolidColorBrush(Color.FromArgb(0x14, 0x80, 0x80, 0x80)),
-            BorderBrush = new SolidColorBrush(Color.FromArgb(0x30, 0x80, 0x80, 0x80)),
-            BorderThickness = new Thickness(1),
-            Child = body,
-        });
+        // Liseré d'accentuation : c'est le module entouré sur la miniature.
+        var frame = CardFrame(body, new Thickness(16, 12, 16, 6));
+        frame.BorderBrush = AccentBrush(Theme.SystemUsesLightTheme());
+        p.Children.Add(frame);
     }
 
     // ------------------------------------------------------------ Galerie et réglages fins
@@ -471,7 +472,7 @@ public partial class SettingsWindow
             .ToList();
         if (hidden.Count == 0)
         {
-            p.Children.Add(Hint("Tous les modules sont déjà sur la barre."));
+            p.Children.Add(Card("Tous les modules sont déjà sur la barre.", null, ""));
             return;
         }
 
@@ -501,43 +502,36 @@ public partial class SettingsWindow
                 AddTo("+ Droite", S.Right);
             }
 
-            cards.Children.Add(new Border
+            var about = Description(Loc.T(info.Description));
+            about.TextTrimming = TextTrimming.WordEllipsis;
+            about.Height = 48;
+            about.Margin = new Thickness(0, 4, 0, 0);
+            var card = CardFrame(new StackPanel
             {
-                Width = 236,
-                Margin = new Thickness(0, 0, 8, 8),
-                Padding = new Thickness(12, 10, 12, 10),
-                CornerRadius = new CornerRadius(8),
-                Background = new SolidColorBrush(Color.FromArgb(0x14, 0x80, 0x80, 0x80)),
-                BorderBrush = new SolidColorBrush(Color.FromArgb(0x30, 0x80, 0x80, 0x80)),
-                BorderThickness = new Thickness(1),
-                ToolTip = Loc.T(info.Description),
-                Child = new StackPanel
+                Children =
                 {
-                    Children =
-                    {
-                        new TextBlock { Text = Loc.T(info.Name), FontWeight = FontWeights.SemiBold },
-                        new TextBlock
-                        {
-                            Text = Loc.T(info.Description), Opacity = 0.7, FontSize = 12, TextWrapping = TextWrapping.Wrap,
-                            TextTrimming = TextTrimming.WordEllipsis, Height = 48, Margin = new Thickness(0, 4, 0, 0),
-                        },
-                        buttons,
-                    },
+                    new TextBlock { Text = Loc.T(info.Name), FontWeight = FontWeights.SemiBold, FontSize = 14 },
+                    about,
+                    buttons,
                 },
-            });
+            }, new Thickness(14, 12, 14, 12));
+            card.Width = 236;
+            card.Margin = new Thickness(0, 0, 8, 8);
+            card.ToolTip = Loc.T(info.Description);
+            cards.Children.Add(card);
         }
         p.Children.Add(cards);
     }
 
     private void BuildFineTuning(Panel p)
     {
-        var body = new StackPanel { Margin = new Thickness(4, 4, 0, 0) };
+        var body = new StackPanel { Margin = new Thickness(0, 4, 0, 0) };
         bool centre = CentreMode(MiniBar());
         AddToggle(body, "Étirer les modules pour remplir chaque zone", S.FillZones, v =>
         {
             S.FillZones = v;
             DrawMini();
-        });
+        }, "Les modules s'élargissent pour occuper toute la place libre.", "");
         if (!centre)
         {
             AddCombo(body, "Zone gauche : placer les modules", new[] { "Contre le bord de l'écran", "Au centre de la zone", "Contre les icônes" },
@@ -545,46 +539,34 @@ public partial class SettingsWindow
                 {
                     S.LeftAlign = (ZoneAlign)i;
                     DrawMini();
-                });
+                }, icon: "");
             AddCombo(body, "Zone droite : placer les modules", new[] { "Contre les icônes", "Au centre de la zone", "Contre la zone de notification" },
                 (int)S.RightAlign, i =>
                 {
                     S.RightAlign = (ZoneAlign)i;
                     DrawMini();
-                });
+                }, icon: "");
             body.Children.Add(Hint("Le placement s'applique quand les modules ne sont pas étirés."));
         }
         AddSlider(body, "Espacement entre les modules", 0, 48, 1, S.Spacing, v => $"{v:0} px", v =>
         {
             S.Spacing = (int)v;
             DrawMini();
-        });
-        AddSlider(body, "Fondu des bords", 0, 40, 1, S.EdgeFade, v => $"{v:0} px", v => S.EdgeFade = (int)v);
-        AddSlider(body, "Marge verticale", 0, 10, 1, S.VerticalPadding, v => $"{v:0} px", v => S.VerticalPadding = (int)v);
-        body.Children.Add(Hint("Les tailles sont exprimées à 100 % d'échelle et suivent automatiquement le DPI de l'écran."));
-
-        var reset = new Button { Content = Loc.T("Réinitialiser la disposition"), HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 6, 0, 4) };
-        reset.Click += (_, _) =>
+        }, icon: "");
+        AddSlider(body, "Fondu des bords", 0, 40, 1, S.EdgeFade, v => $"{v:0} px", v => S.EdgeFade = (int)v,
+            "Les bords des modules s'estompent dans la barre.", "");
+        AddSlider(body, "Marge verticale", 0, 10, 1, S.VerticalPadding, v => $"{v:0} px", v => S.VerticalPadding = (int)v,
+            "Les tailles sont exprimées à 100 % d'échelle et suivent automatiquement le DPI de l'écran.", "");
+        ActionCard(body, "Réinitialiser la disposition", "Réinitialiser", () =>
         {
             S.ResetLayout();
             _selected = null;
             Changed();
             BuildModules();
             BuildLayout();
-        };
-        body.Children.Add(reset);
+        }, "Remet les modules et leur placement par défaut.", "");
 
-        const string key = "layout.fine";
-        var expander = new Expander
-        {
-            Header = Loc.T("Réglages fins"),
-            Content = body,
-            IsExpanded = _expanded.Contains(key),
-            Margin = new Thickness(0, 14, 0, 0),
-        };
-        expander.Expanded += (_, _) => _expanded.Add(key);
-        expander.Collapsed += (_, _) => _expanded.Remove(key);
-        p.Children.Add(expander);
+        p.Children.Add(Folded("layout.fine", "Réglages fins", body, new Thickness(0, 22, 0, 0)));
     }
 
     /// <summary>Auto-test : choisit le premier module affiché et déplie les réglages fins, pour la capture.</summary>

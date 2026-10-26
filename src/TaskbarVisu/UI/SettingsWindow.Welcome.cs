@@ -37,6 +37,7 @@ public partial class SettingsWindow
     {
         _welcomeOwnLayout = false;
         Tabs.Visibility = Visibility.Collapsed;
+        AppHeader.Visibility = Visibility.Collapsed;
         Footer.Visibility = Visibility.Collapsed;
         WelcomeRoot.Visibility = Visibility.Visible;
         GoToWelcomeStep(0);
@@ -59,6 +60,7 @@ public partial class SettingsWindow
         WelcomeRoot.Children.Clear();
         WelcomeRoot.Visibility = Visibility.Collapsed;
         Tabs.Visibility = Visibility.Visible;
+        AppHeader.Visibility = Visibility.Visible;
         Footer.Visibility = Visibility.Visible;
         // Les onglets reflètent ce qui a été choisi pendant le guide.
         RebuildAll();
@@ -137,11 +139,12 @@ public partial class SettingsWindow
         switch (_welcomeStep)
         {
             case 0: BuildWelcomeZones(body); break;
-            case 1: BuildWelcomeStyles(body, accent); break;
+            case 1: BuildWelcomeStyles(body); break;
             case 2: BuildWelcomePacks(body, accent); break;
             case 3: BuildWelcomeSettings(body); break;
             default: BuildWelcomeTray(body); break;
         }
+        MergeHints(body);
         var scroll = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Content = body };
         Grid.SetRow(scroll, 3);
         grid.Children.Add(scroll);
@@ -180,7 +183,7 @@ public partial class SettingsWindow
     {
         p.Children.Add(ZonesMiniature());
         _welcomeZones = new TextBlock { FontFamily = MonoFont, FontSize = 15, LineHeight = 24, Margin = new Thickness(0, 4, 0, 12) };
-        p.Children.Add(Card(_welcomeZones));
+        p.Children.Add(InfoBox(_welcomeZones));
         RefreshWelcomeZones();
         p.Children.Add(Hint("Les zones suivent la barre toutes seules : icônes ouvertes ou fermées, autre écran, autre taille. " +
                             "Icônes alignées à gauche ? Les modules peuvent aussi se grouper au centre (onglet Disposition)."));
@@ -267,36 +270,20 @@ public partial class SettingsWindow
 
     // ------------------------------------------------------------ 2. Style
 
-    private void BuildWelcomeStyles(Panel p, Brush accent)
+    private void BuildWelcomeStyles(Panel p)
     {
         // Grille fixe et sélection mise à jour sur place : les cartes ne bougent jamais quand on en choisit une.
-        var cards = new UniformGrid { Columns = 4 };
-        var current = StylePresets.Current(S);
-        foreach (var preset in StylePresets.All)
+        // Sous la grille, l'animation des couleurs, qui suit le style choisi (le RGB défile).
+        var animation = new StackPanel { Margin = new Thickness(0, 6, 0, 0) };
+        void ShowAnimation()
         {
-            var content = new StackPanel
-            {
-                Children =
-                {
-                    PresetPreview(preset, 150, 46),
-                    new TextBlock
-                    {
-                        Text = Loc.T(preset.Name).ToUpperInvariant(), FontFamily = MonoFont, FontSize = 11.5,
-                        Margin = new Thickness(0, 7, 0, 0),
-                    },
-                },
-            };
-            var card = CardButton(content, ReferenceEquals(preset, current), accent);
-            card.Margin = new Thickness(0, 0, 10, 10);
-            card.Click += (_, _) =>
-            {
-                StylePresets.Apply(S, preset);
-                Changed();
-                SelectCard(cards, card, accent);
-            };
-            cards.Children.Add(card);
+            animation.Children.Clear();
+            AddAnimationControls(animation);
+            MergeHints(animation);
         }
-        p.Children.Add(cards);
+        p.Children.Add(PresetGrid(4, ShowAnimation));
+        p.Children.Add(animation);
+        ShowAnimation();
     }
 
     /// <summary>Met le liseré d'accentuation sur <paramref name="selected"/> et l'enlève des autres cartes, sans rien déplacer.</summary>
@@ -383,11 +370,14 @@ public partial class SettingsWindow
             };
             grid.Children.Add(card);
         }
-        var own = PackCard("Je choisis moi-même", "La disposition actuelle reste telle quelle ; le guide se termine sur l'onglet Disposition.",
+        var own = PackCard("Je choisis moi-même", "La barre reste vide : vous ajoutez vos modules un par un, le guide se termine sur l'onglet Disposition.",
             null, _welcomeOwnLayout, accent);
         own.Click += (_, _) =>
         {
+            // On part d'une barre vide : rien n'apparaît tant qu'on n'a pas choisi ses modules.
             _welcomeOwnLayout = true;
+            foreach (var module in S.AllModules) module.Enabled = false;
+            Changed();
             SelectCard(grid, own, accent);
         };
         grid.Children.Add(own);
@@ -519,7 +509,7 @@ public partial class SettingsWindow
 
     // ------------------------------------------------------------ Cartes
 
-    private static Border Card(UIElement child) => new()
+    private static Border InfoBox(UIElement child) => new()
     {
         CornerRadius = new CornerRadius(8),
         Padding = new Thickness(16, 10, 16, 6),

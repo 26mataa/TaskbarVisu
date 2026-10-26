@@ -25,9 +25,11 @@ internal enum ZoneAlign { Start, Center, End }
 /// </summary>
 internal enum BackgroundChoice { None, Dark, Black, Lcd }
 
-/// <summary>Animation de la palette RGB (arc-en-ciel animé).</summary>
-internal enum RgbEffect
+/// <summary>Animation des couleurs de la palette (toutes les palettes, RGB comprise).</summary>
+internal enum ColorAnimation
 {
+    /// <summary>Palette fixe, sans animation.</summary>
+    Still,
     /// <summary>Les couleurs défilent des graves vers les aigus.</summary>
     Flow,
     /// <summary>Les couleurs défilent des aigus vers les graves.</summary>
@@ -36,10 +38,8 @@ internal enum RgbEffect
     Cycle,
     /// <summary>L'arc-en-ciel oscille d'un côté puis de l'autre.</summary>
     Bounce,
-    /// <summary>Arc-en-ciel fixe dont la luminosité respire.</summary>
+    /// <summary>Palette fixe dont la luminosité respire.</summary>
     Pulse,
-    /// <summary>Arc-en-ciel fixe, sans animation.</summary>
-    Still,
 }
 
 /// <summary>Ce que TaskbarVisu écoute.</summary>
@@ -86,7 +86,7 @@ internal sealed class ModuleConfig
 
 internal sealed class AppSettings
 {
-    public const int CurrentVersion = 5;
+    public const int CurrentVersion = 6;
     public const int MaxModuleWidth = 400;
 
     public int Version { get; set; } = CurrentVersion;
@@ -129,9 +129,9 @@ internal sealed class AppSettings
     public string PaletteLow { get; set; } = "#3A0CA3";
     public string PaletteHigh { get; set; } = "#FFD60A";
     public BackgroundChoice Background { get; set; } = BackgroundChoice.None;
-    public RgbEffect RgbEffect { get; set; } = RgbEffect.Flow;
-    /// <summary>Durée d'un cycle de l'animation RGB, en secondes.</summary>
-    public double RgbSeconds { get; set; } = 14;
+    public ColorAnimation Animation { get; set; } = ColorAnimation.Still;
+    /// <summary>Durée d'un cycle de l'animation des couleurs, en secondes.</summary>
+    public double AnimationSeconds { get; set; } = 14;
     public bool PixelFont { get; set; } = true;
     public bool ShowScales { get; set; } = true;
     public bool Scanlines { get; set; } = true;
@@ -186,7 +186,7 @@ internal sealed class AppSettings
         foreach (var (id, zone) in new[]
                  {
                      ("vu", Left), ("xyscope", Left),
-                     ("loudness", Right), ("pianoroll", Right), ("rawdata", Right),
+                     ("loudness", Right), ("pianoroll", Right), ("rawdata", Right), ("aero", Right),
                  })
         {
             var hidden = DefaultLayoutConfig(id, previous);
@@ -233,6 +233,11 @@ internal sealed class AppSettings
         if (Version < 3) MigrateTo3();
         if (Version < 4) MigrateTo4();
         if (Version < 5) MigrateTo5();
+        if (Version < 6 && Palette == PaletteChoice.RainbowAnimated)
+        {
+            // v0.9.0 → v0.9.1 : l'animation devient un réglage ; l'arc-en-ciel animé gardait son défilement.
+            Animation = ColorAnimation.Flow;
+        }
         Version = CurrentVersion;
 
         var seen = new HashSet<string>();
@@ -249,7 +254,11 @@ internal sealed class AppSettings
         Fps = Math.Clamp(Fps, 15, 240);
         Opacity = Math.Clamp(Opacity, 0.2, 1.0);
         Background = CleanBackground(Background);
-        RgbSeconds = Math.Clamp(RgbSeconds, 2, 60);
+        AnimationSeconds = Math.Clamp(AnimationSeconds, 2, 60);
+        // Une seule palette RGB : l'ancien arc-en-ciel fixe devient la palette RGB sans animation.
+        if (Palette == PaletteChoice.Rainbow) Palette = PaletteChoice.RainbowAnimated;
+        foreach (var m in AllModules)
+            if (m.ColorPalette == PaletteChoice.Rainbow) m.ColorPalette = PaletteChoice.RainbowAnimated;
         EdgeFade = Math.Clamp(EdgeFade, 0, 60);
         Spacing = Math.Clamp(Spacing, 0, 60);
         VerticalPadding = Math.Clamp(VerticalPadding, 0, 12);

@@ -1,6 +1,6 @@
 namespace TaskbarVisu.Core;
 
-/// <summary>Un style complet appliqué en un clic : palette, police, effets, fond, couleur des textes et thème.</summary>
+/// <summary>Un style complet appliqué en un clic : palette, police, effets, fond, couleur des textes, thème et animation.</summary>
 internal sealed record StylePreset(
     string Name,
     PaletteChoice Palette,
@@ -8,7 +8,8 @@ internal sealed record StylePreset(
     bool Scanlines,
     BackgroundChoice Background,
     ColorChoice Ink,
-    ThemeChoice Theme = ThemeChoice.Auto);
+    ThemeChoice Theme = ThemeChoice.Auto,
+    ColorAnimation Animation = ColorAnimation.Still);
 
 internal static class StylePresets
 {
@@ -21,7 +22,7 @@ internal static class StylePresets
         new("Vaporwave", PaletteChoice.Vaporwave, false, true, BackgroundChoice.None, ColorChoice.Palette),
         new("Chrome Y2K", PaletteChoice.Chrome, true, false, BackgroundChoice.None, ColorChoice.Default),
         new("Toxique", PaletteChoice.Toxic, true, true, BackgroundChoice.None, ColorChoice.Palette),
-        new("RGB", PaletteChoice.RainbowAnimated, true, true, BackgroundChoice.None, ColorChoice.Default),
+        new("RGB", PaletteChoice.RainbowAnimated, true, true, BackgroundChoice.None, ColorChoice.Default, Animation: ColorAnimation.Flow),
         // Afficheurs d'appareils.
         new("VFD", PaletteChoice.Vfd, true, true, BackgroundChoice.None, ColorChoice.Palette),
         new("LCD", PaletteChoice.Lcd, true, false, BackgroundChoice.Lcd, ColorChoice.Palette, ThemeChoice.Light),
@@ -43,5 +44,6 @@ internal static class StylePresets
         s.Background = preset.Background;
         s.ColorMode = preset.Ink;
         s.Theme = preset.Theme;
+        s.Animation = preset.Animation;
     }
 }
