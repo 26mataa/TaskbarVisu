@@ -4,11 +4,15 @@
         Title="TaskbarVisu — Paramètres"
         Width="1000" Height="740" MinWidth="780" MinHeight="520"
         WindowStartupLocation="CenterScreen"
+        Background="{DynamicResource SolidBackgroundFillColorBaseBrush}"
+        Foreground="{DynamicResource TextFillColorPrimaryBrush}"
         Icon="/Assets/TaskbarVisu.ico">
     <Window.Resources>
         <!-- Navigation latérale façon Paramètres de Windows 11 : liseré d'accentuation sur la page ouverte. -->
+        <!-- Le style Fluent des onglets grise le texte des onglets non choisis et de leur contenu : on garde le texte principal. -->
         <Style x:Key="NavItem" TargetType="TabItem">
             <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="TabItem">
@@ -34,6 +38,10 @@
         </Style>
 
         <Style x:Key="NavTabs" TargetType="TabControl">
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="0" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="TabControl">
