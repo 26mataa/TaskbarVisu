@@ -17,18 +17,22 @@ posés dans les espaces libres à gauche et à droite des icônes, sans cadre.
 | **Forme d'onde** | Miroir, enveloppe ou oscilloscope déclenché ; couleur selon le contenu fréquentiel |
 | **Niveaux crête + LUFS** | Crête-mètre L/R à segments, graduations, maintien des crêtes, écrêtage, sonie BS.1770 avec cible et lecture inversée |
 | **VU-mètre** | Style LED (arc à segments, tête lumineuse et traînée) ou analogique (aiguille), balistique ~300 ms, mono ou stéréo |
-| **Analyseur de spectre** | Barres, points LED, courbe remplie ou ligne ; crêtes maintenues ; note détectée (Hz, note, cents) |
+| **Analyseur de spectre** | Relief façon MiniMeters (courbe lissée ombrée selon le niveau, trace fine du canal « côtés »), barres, points LED, courbe remplie ou ligne ; crêtes maintenues ; lecture du pic (niveau, fréquence, note) |
 | **Imageur stéréo** | Vectorscope polaire coloré par bande + panorama par fréquence (ou largeur par fréquence) ; corrélation en axe coloré ou en barre |
 | **Historique de sonie** | Courbe LUFS sur 15 s à 5 min (barres LED ou courbe), ligne de cible |
-| **Accordeur** | 2 modes : note + justesse (±50 cents), tonalité (gamme) avec confiance et, pour un morceau modal, sa note centrale (« ◆F MIX ») ; mini-piano LED, notation C D E, Do Ré Mi ou Camelot |
-| **Piano roll** | Notes réellement entendues, octave comprise, sur un clavier de 3 à 6 octaves ; leur historique défile au-dessus (couleur selon la hauteur ou l'intensité, clavier en bas ou en haut) |
+| **Accordeur** | 2 modes : note + justesse (±50 cents), tonalité (gamme) avec confiance et, pour un morceau modal, sa note centrale (« ◆F MIX ») ; mini-piano LED, notation C D E, Do Ré Mi ou Camelot ; en option, les tonalités précédentes du morceau (« <C <Aᵐ ») |
+| **Piano roll** | Notes réellement entendues, octave comprise, justes à quelques cents (analyse dédiée en deux résolutions), sur un clavier de 3 à 6 octaves ; leur historique défile au-dessus (couleur selon la hauteur ou l'intensité, clavier en bas ou en haut) |
+| **Oscilloscope XY** | Goniomètre (milieu / côtés) ou Lissajous (gauche / droite) tracé en phosphore qui s'éteint lentement, réticule gradué |
+| **Données brutes** | Les échantillons tels que la carte son les voit : lignes hexadécimales qui défilent ou matrice de bits. Purement expérimental |
 
 Disposition par défaut : niveaux, spectrogramme et spectre à gauche ; imageur, accordeur et forme d'onde
-à droite. VU-mètre, historique de sonie et piano roll sont disponibles mais masqués (onglet Disposition).
+à droite. VU-mètre, historique de sonie, piano roll, oscilloscope XY et données brutes
+sont disponibles mais masqués (onglet Disposition). Au lancement, chaque module fait un court
+*self-test* (balayage LED, « OK ») avant de s'allumer ; désactivable dans Général.
 
 ### Détection de tonalité
 
-Analyse dédiée haute résolution (`Dsp/KeyAnalyzer.cs`, partagée par l'accordeur et le piano roll et
+Analyse dédiée haute résolution (`Dsp/KeyAnalyzer.cs`, utilisée par l'accordeur et
 calculée une seule fois par image) : FFT 16384 points (~2,9 Hz par case), séparation harmonique /
 percussive par médiane temporelle, pics tonaux interpolés, accordage global estimé (432 Hz, voix
 pitchée…), chromagramme HPCP avec harmoniques, chroma de basse, vote de trois profils
@@ -62,12 +66,25 @@ changement de morceau grâce à l'oubli après un silence.
 
 ### Notes jouées (piano roll)
 
-Rien n'est deviné : chaque note s'allume selon son énergie propre. Les harmoniques sont retirées par
-soustraction, du grave à l'aigu : chaque note « explique » au plus 1,15/h de son amplitude au ×h, et
-seulement si sa série harmonique est complète jusque-là (inharmonicité du piano estimée sur la série,
-partiels masqués par une note voisine tolérés). Une basse presque pure n'efface donc pas la tierce qui
-tombe sur son ×5, une octave doublée au clavier reste visible, et les harmoniques de plusieurs notes qui
-se superposent s'additionnent au lieu de passer pour une note.
+Rien n'est deviné : chaque note s'allume selon son énergie propre. Le piano roll a sa propre analyse
+(`Dsp/NoteTracker.cs`), recalculée toutes les 40 ms :
+
+- deux résolutions : FFT de 16384 points sous 150 Hz (demi-tons serrés de la basse), 8192 au-dessus
+  (fenêtre de 170 ms, plus réactive) ;
+- fréquence de chaque pic par réallocation (fenêtre de Hann et sa dérivée dans une seule FFT complexe),
+  juste à quelques cents près même entre deux cases ;
+- un pic ne compte que s'il dépasse d'au moins 16 dB le plancher de son voisinage : le bruit, la batterie
+  et les lobes des notes voisines d'un accord serré n'en produisent pas ;
+- hystérésis : une note s'allume après deux analyses au-dessus du seuil et ne s'éteint qu'après deux
+  analyses 6 dB plus bas, sans clignoter.
+
+Les harmoniques sont retirées par un crible partagé avec l'analyse de tonalité (`Dsp/HarmonicSieve.cs`),
+du grave à l'aigu : chaque note « explique » au plus 1,15/h de son amplitude au ×h, et seulement si sa
+série harmonique monte jusque-là (inharmonicité du piano estimée sur la série, fenêtre élargie côté aigu
+pour les partiels confondus avec ceux d'une autre note, partiels masqués par une note voisine tolérés).
+Une basse presque pure n'efface donc pas la tierce qui tombe sur son ×5, une octave doublée au clavier
+reste visible, et les harmoniques de plusieurs notes qui se superposent s'additionnent au lieu de passer
+pour une note.
 
 Limites connues : une note sous ~40 Hz (avant Mi1) n'est pas vue ; des octaves empilées en dents de scie
 (Do2 + Do4 + Do5) peuvent faire apparaître faiblement l'octave du dessus (~ -18 dB).
@@ -107,27 +124,44 @@ la trace liste aussi les pics de chaque image (fréquence:amplitude:part non exp
 
 ## Apparence
 
-- Préréglages en un clic : Labo, MiniMeters, CRT Phosphore, Synthwave, Vaporwave, Chrome Y2K, Toxique, RGB.
+- Préréglages en un clic : Labo, MiniMeters, CRT Phosphore, Synthwave, Vaporwave, Chrome Y2K, Toxique, RGB,
+  et trois afficheurs matériels : VFD (tube fluorescent cyan), LCD (encre sombre sur fond olive), Nixie
+  (tubes orange).
 - Police pixel 5×7 (ou monospace lissée), graduations et repères techniques, effet scanlines.
 - Palette : Magma, Brasier, Spectrale, Phosphore, Glace, Arc-en-ciel RGB, Arc-en-ciel animé, Synthwave,
-  Vaporwave, Toxique, Chrome Y2K, Monochrome, accentuation Windows ou personnalisée (grave → aigu).
+  Vaporwave, Toxique, Chrome Y2K, VFD, LCD, Nixie, Monochrome, accentuation Windows ou dégradé
+  personnalisé (grave → aigu) de 2 à 8 couleurs : clic sur la barre pour ajouter une couleur, repères à
+  glisser, clic droit pour retirer, inversion, point de départ pris d'une palette existante.
 - Textes et repères : lavande, teintés par la palette, accentuation Windows ou couleur choisie au sélecteur.
-- Chaque module peut avoir ses propres couleurs : une autre palette ou une couleur unie.
-- Fond des modules : aucun (fondu dans la barre), sombre translucide ou noir.
+- Chaque module peut avoir ses propres couleurs : une autre palette, son propre dégradé ou une couleur unie.
+- Fond des modules : aucun (fondu dans la barre), sombre translucide, noir ou écran LCD (olive clair).
+- Partager un style : code court `TBV1:…` (JSON compressé, à coller sur Discord) ou fichier `.tbvstyle`.
+  Le style comprend palette, effets, fond et couleurs de chaque module, pas la disposition.
 
 ## Fonctionnement
 
-- **Capture** : WASAPI en *loopback* sur la sortie par défaut (tout ce que le PC joue),
-  avec bascule automatique quand le périphérique par défaut change.
+- **Capture** : WASAPI, au choix :
+  - tout le son du PC (*loopback* sur la sortie par défaut, qui suit le changement de casque ou d'enceintes) ;
+  - une sortie précise (plusieurs cartes son) ;
+  - une seule application (*process loopback* de Windows 11 : FL Studio sans Discord, par exemple ;
+    TaskbarVisu attend l'application si elle est fermée et la reprend quand elle redémarre) ;
+  - une entrée (micro, ligne, platine).
 - **Placement** : la barre des tâches est localisée (haut ou bas, compacte ou non, DPI de l'écran),
   puis ses éléments sont lus via UI Automation (Démarrer, icônes, zone de notification) et les fenêtres
   tierces posées dessus (FluentFlyout, widgets…) sont prises en compte. Les deux plus grands espaces
   libres deviennent la zone gauche et la zone droite. Si les icônes sont alignées à gauche, le grand
-  espace unique est partagé en deux.
-- **Rendu** : deux fenêtres Win32 *layered* transparentes aux clics, toujours au-dessus de la barre,
-  dessinées par SkiaSharp (CPU) directement dans une DIB 32 bits. Aucun fond : seul le tracé est opaque,
-  avec un fondu sur les bords de chaque module.
-- **Masquage automatique** : application en plein écran, barre masquée automatiquement, pause.
+  espace unique est partagé en deux, ou tous les modules (gauche puis droite) sont groupés en son centre.
+- **Multi-écran** : écran principal, un écran choisi, ou tous les écrans à la fois (une barre suivie et
+  un rendu par écran, sur la même capture audio).
+- **Rendu** : deux fenêtres Win32 *layered* par barre, transparentes aux clics, toujours au-dessus de la
+  barre, dessinées par SkiaSharp (CPU) directement dans une DIB 32 bits. Aucun fond : seul le tracé est
+  opaque, avec un fondu sur les bords de chaque module.
+- **Masquage** : application en plein écran, barre masquée automatiquement, pause, et raccourci clavier
+  global (Ctrl + Alt + V par défaut, ou Ctrl + Maj + V, Ctrl + Alt + H) qui fonctionne même en jeu.
+- **Mises à jour** : au démarrage puis une fois par jour, la dernière release GitHub est comparée à la
+  version installée (désactivable). Version installée : un clic télécharge l'installeur, vérifie son
+  empreinte SHA-256 publiée par GitHub, l'installe en silence et relance TaskbarVisu. Version portable :
+  la page de téléchargement s'ouvre. Rien n'est installé sans clic.
 - **Barre verticale** : non prise en charge (les visualiseurs restent masqués).
 
 ## Économie de ressources
@@ -139,10 +173,12 @@ la trace liste aussi les pics de chaque image (fréquence:amplitude:part non exp
 - En silence, une fois l'affichage figé, plus aucun rendu (≈ 0 % CPU).
 - Détection de la barre déclenchée par événements (ouverture / fermeture d'applications) plus une
   vérification de secours espacée (3 s par défaut).
-- Fenêtre de réglages libérée de la mémoire à la fermeture.
+- Fenêtre de réglages libérée à la fermeture (seul le moteur WPF reste chargé) : pas d'accumulation au fil
+  des ouvertures.
 
 Mesure indicative (Ryzen 7 9800X3D, 2560×1440 à 125 %, 6 modules de 125 px, 60 i/s, signal continu) :
-≈ 0,45 ms de rendu par image, ≈ 3 % d'un cœur, ≈ 37 Mo de mémoire privée.
+≈ 0,65 ms de rendu par image, ≈ 5 % d'un cœur, ≈ 80 Mo de mémoire privée une fois les historiques remplis
+(stable ensuite ; ≈ 180 Mo après une première ouverture des réglages, qui charge WPF).
 
 ## Langues
 
@@ -154,15 +190,24 @@ sont dans `Core/Loc.cs` (le texte français sert de clé).
 
 Clic sur l'icône de la zone de notification → fenêtre de réglages (style Windows 11) :
 
-- **Général** : démarrer avec Windows, fermer vers la zone de notification, écran (principal par
-  défaut, au choix si plusieurs), plein écran, i/s, résolution FFT, économie d'énergie.
-- **Apparence** : style, palette, couleurs, fond, opacité.
-- **Disposition** : modules à gauche / à droite, ordre et changement de côté (glisser-déposer ou
-  boutons), largeur (60 à 400 px), étirement ou placement (contre le bord, au centre, contre les
-  icônes / la zone de notification), espacement, fondu, marge verticale, réinitialisation.
+- **Général** : démarrage (avec Windows, fermer vers la zone de notification, animation d'allumage),
+  source audio, langue, écran (principal, tous, ou un écran précis), plein écran, raccourci clavier,
+  mises à jour, i/s, résolution FFT, économie d'énergie, dossier des réglages.
+- **Apparence** : préréglages, style, palette, couleurs, fond, opacité, partage de style.
+- **Disposition** : la barre des tâches en miniature, modules à l'échelle et place restante par zone.
+  Un clic sur un module ouvre ses réglages (largeur de 60 à 400 px, décaler, changer de côté, retirer,
+  options) ; on peut aussi le glisser. En dessous : ajout des modules masqués (+ Gauche / + Droite),
+  icônes alignées à gauche (deux zones ou tout au centre), puis les réglages fins repliés (étirement ou
+  placement, espacement, fondu, marge verticale).
+- **Guide de démarrage** : au premier lancement, cinq étapes avec « Passer » toujours visible. Les zones
+  libres clignotent sur la vraie barre, choix d'une ambiance (préréglage) et d'un pack de modules
+  (Studio, Musicien, Minimal ou « Je choisis moi-même »), source audio, démarrage et raccourci, puis une
+  flèche sur la barre montre l'icône de la zone de notification. Il se rejoue depuis Général.
 - **Modules** : options propres à chaque module, réinitialisables.
 
-Réglages et journal : `%APPDATA%\TaskbarVisu\` (`settings.json`, `log.txt`).
+Réglages et journal : `%APPDATA%\TaskbarVisu\` (`settings.json`, `log.txt`). Mode portable : avec un fichier
+`portable.txt` à côté de `TaskbarVisu.exe` (fourni dans le zip portable), ils vont dans le dossier `data`
+à côté de l'exe.
 
 ## Compiler et lancer
 
@@ -177,16 +222,24 @@ cd src/TaskbarVisu
 dotnet run -c Release
 ```
 
-Construire la version portable (autonome) puis l'installeur (Inno Setup 6) :
+Construire une release complète en une commande (version lue dans le `.csproj`) :
 
 ```
-dotnet publish src/TaskbarVisu -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -p:DebugType=none -o build/portable
-ISCC.exe /DAppVersion=0.8.3 installer/TaskbarVisu.iss
+powershell -ExecutionPolicy Bypass -File tools/build-release.ps1
 ```
+
+Le script produit dans `build/` l'exe autonome (`portable/`), le zip portable (avec `portable.txt` et
+`LISEZMOI.txt`), l'installeur Inno Setup 6, `SHA256SUMS.txt` et les manifestes winget
+(`winget/manifests/2/26mataa/TaskbarVisu/<version>/`, identifiant `26mataa.TaskbarVisu`). Rien n'est
+publié : la release GitHub et la soumission winget (pull request sur `microsoft/winget-pkgs`, une fois
+l'installeur en ligne à l'adresse du manifeste) se font à la main. L'installeur accepte `/RELAUNCH=1`
+(utilisé par la mise à jour intégrée) pour relancer TaskbarVisu après une installation silencieuse.
 
 Arguments : `--tray` (démarre sans ouvrir les réglages, utilisé par le démarrage avec Windows),
 `--dump <dossier>` (diagnostic : PNG du rendu et profil toutes les 5 s),
-`--selftest-ui` (diagnostic : construit la fenêtre de réglages hors écran puis quitte),
+`--selftest-ui` (diagnostic : construit la fenêtre de réglages et le guide hors écran puis quitte ; avec
+`--dump`, captures de chaque onglet et de chaque étape du guide),
+`--guide zones|tray` (diagnostic : affiche un repère du guide de démarrage sur la barre),
 `--test-signal` (diagnostic : signal synthétique à la place de la capture, rien n'est joué),
 `--headless` (diagnostic : instance séparée qui n'affiche aucune fenêtre),
 `--lang fr|en|es|de` (diagnostic : force une langue),
@@ -202,14 +255,15 @@ L'icône est générée par `tools/make-icon.ps1`.
 
 ```
 src/TaskbarVisu/
-  Audio/       capture WASAPI loopback, tampon circulaire, signaux de test
-  Dsp/         FFT, LUFS (BS.1770), tonalité et notes, analyse hors ligne
+  Audio/       capture WASAPI (loopback, sortie, application, entrée), tampon circulaire, signaux de test
+  Dsp/         FFT, LUFS (BS.1770), tonalité, notes jouées et crible harmonique, analyse hors ligne
   Taskbar/     localisation de la barre, zones libres (UI Automation + fenêtres tierces)
-  Rendering/   fenêtres overlay, boucle de rendu, thème, disposition, caches
-  Modules/     les 9 visualiseurs + catalogue d'options
+  Rendering/   fenêtres overlay, boucle de rendu, thème, disposition, caches, animation d'allumage
+  Modules/     les 11 visualiseurs + catalogue d'options
   UI/          fenêtre de réglages, icône de notification
-  Core/        réglages, traductions, démarrage avec Windows, journal
+  Core/        réglages, traductions, démarrage avec Windows, journal, raccourci, mises à jour, codes de style
 installer/     script de l'installeur (Inno Setup)
+tools/         script de release, génération de l'icône
 tests/         banc de test (tonalités, notes, sons non musicaux)
 docs/          captures
 ```

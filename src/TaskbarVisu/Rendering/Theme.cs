@@ -41,6 +41,10 @@ internal sealed class Theme
     private (float T, SKColor C)[] _palette = Array.Empty<(float, SKColor)>();
     private readonly SKColor[] _spectral = new SKColor[256];
     private AppSettings _settings = null!;
+    private List<ColorStop>? _gradient;
+
+    /// <summary>Début de la partie des palettes intégrées utilisée pour les données (voir <see cref="Spectral"/>).</summary>
+    private const float VisibleStart = 0.22f;
 
     private static readonly SKColor DefaultInkDark = new(0xD4, 0xDC, 0xFF);
     private static readonly SKColor DefaultInkLight = new(0x1D, 0x24, 0x33);
@@ -49,7 +53,8 @@ internal sealed class Theme
 
     /// <param name="palette">Palette propre à un module (sinon celle des réglages).</param>
     /// <param name="solid">Couleur unie propre à un module : palette monochrome de cette teinte.</param>
-    public static Theme Build(AppSettings s, PaletteChoice? palette, SKColor? solid)
+    /// <param name="gradient">Dégradé propre à un module, quand sa palette est « Personnalisée ».</param>
+    public static Theme Build(AppSettings s, PaletteChoice? palette, SKColor? solid, List<ColorStop>? gradient = null)
     {
         bool light = s.Theme switch
         {
@@ -66,6 +71,7 @@ internal sealed class Theme
             OverlayBack = light ? new SKColor(0xF4, 0xF4, 0xF4, 0xEC) : new SKColor(0x05, 0x05, 0x08, 0xE8),
         };
         theme._settings = s;
+        theme._gradient = gradient;
 
         // L'encre « par défaut » sert aussi de base aux palettes monochromes.
         var baseInk = s.ColorMode switch
@@ -79,9 +85,12 @@ internal sealed class Theme
         var choice = palette ?? s.Palette;
         theme.Animated = solid is null && choice == PaletteChoice.RainbowAnimated;
         theme._palette = solid is { } c ? MonoStops(c) : theme.Stops(choice);
+        // Le bas des palettes intégrées (très sombre) ne sert qu'aux fonds du spectrogramme ;
+        // un dégradé personnalisé est visible en entier, comme dans son éditeur.
+        float start = solid is null && choice == PaletteChoice.Custom ? 0f : VisibleStart;
         for (int i = 0; i < 256; i++)
         {
-            float t = theme.Animated ? i / 256f : 0.22f + 0.78f * i / 255f;
+            float t = theme.Animated ? i / 256f : start + (1 - start) * i / 255f;
             theme._spectral[i] = Sample(theme._palette, t);
         }
 
@@ -190,6 +199,22 @@ internal sealed class Theme
             (0f, C(0x1C, 0x22, 0x30)), (0.3f, C(0x4A, 0x55, 0x68)), (0.55f, C(0xA0, 0xAE, 0xC0)),
             (0.75f, C(0xE2, 0xE8, 0xF0)), (0.9f, C(0x7D, 0xD3, 0xFC)), (1f, C(0xF0, 0xF9, 0xFF)),
         },
+        // Afficheurs d'appareils réels (sans marque) : tube fluorescent VFD, LCD rétroéclairé, tubes Nixie.
+        PaletteChoice.Vfd => new[]
+        {
+            (0f, C(0x00, 0x1A, 0x17)), (0.35f, C(0x00, 0x59, 0x4F)), (0.7f, C(0x00, 0xE5, 0xC0)),
+            (0.9f, C(0x7D, 0xFF, 0xE5)), (1f, C(0xE0, 0xFF, 0xF8)),
+        },
+        PaletteChoice.Lcd => new[]
+        {
+            // Sur fond olive clair : plus le signal est fort, plus le segment est sombre.
+            (0f, C(0x80, 0x8C, 0x66)), (0.45f, C(0x4A, 0x55, 0x34)), (0.8f, C(0x22, 0x2B, 0x17)), (1f, C(0x0D, 0x12, 0x0A)),
+        },
+        PaletteChoice.Nixie => new[]
+        {
+            (0f, C(0x1A, 0x05, 0x00)), (0.3f, C(0x5C, 0x14, 0x00)), (0.6f, C(0xE0, 0x4A, 0x00)),
+            (0.85f, C(0xFF, 0x8A, 0x2A)), (1f, C(0xFF, 0xE0, 0xB0)),
+        },
         PaletteChoice.Monochrome => MonoStops(Ink),
         PaletteChoice.Accent => MonoStops(AccentColor(false) ?? DefaultInkDark),
         PaletteChoice.Custom => CustomStops(),
@@ -205,10 +230,32 @@ internal sealed class Theme
 
     private (float, SKColor)[] CustomStops()
     {
-        var low = Parse(_settings.PaletteLow) ?? C(0x3A, 0x0C, 0xA3);
-        var high = Parse(_settings.PaletteHigh) ?? C(0xFF, 0xD6, 0x0A);
-        return new[] { (0f, Scale(low, 0.35f)), (0.35f, low), (0.65f, Mix(low, high, 0.5f)), (0.9f, high), (1f, Mix(high, SKColors.White, 0.6f)) };
+        var stops = (Gradients.Clean(_gradient) ?? Gradients.Clean(_settings.Gradient) ?? Gradients.Default())
+            .Select(s => ((float)s.Pos, Parse(s.Color) ?? SKColors.White))
+            .ToArray();
+        // Sample attend des repères de 0 à 1 : on prolonge les couleurs des extrémités.
+        if (stops[0].Item1 > 0) stops = stops.Prepend((0f, stops[0].Item2)).ToArray();
+        if (stops[^1].Item1 < 1) stops = stops.Append((1f, stops[^1].Item2)).ToArray();
+        return stops;
     }
+
+    /// <summary>
+    /// Une palette sous forme de dégradé personnalisé (« partir d'une palette existante ») :
+    /// seule la partie visible des palettes intégrées est reprise, en 8 couleurs au plus.
+    /// </summary>
+    public static List<ColorStop> ToGradient(AppSettings s, PaletteChoice palette)
+    {
+        var theme = Build(s, palette, null);
+        if (palette == PaletteChoice.Custom) return Gradients.Copy(s.Gradient);
+        float start = palette == PaletteChoice.RainbowAnimated ? 0 : VisibleStart;
+        var result = new List<ColorStop> { new(0, Hex(Sample(theme._palette, start))) };
+        foreach (var (t, c) in theme._palette)
+            if (t > start + 0.02f) result.Add(new ColorStop(Math.Round((t - start) / (1 - start), 3), Hex(c)));
+        while (result.Count > Gradients.MaxStops) result.RemoveAt(result.Count / 2);
+        return result;
+    }
+
+    private static string Hex(SKColor c) => $"#{c.Red:X2}{c.Green:X2}{c.Blue:X2}";
 
     private static SKColor Sample((float T, SKColor C)[] stops, float t)
     {

@@ -35,6 +35,13 @@ internal static class Log
 
 internal static class Paths
 {
-    public static string DataDir { get; } =
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "TaskbarVisu");
+    /// <summary>
+    /// Mode portable : un fichier « portable.txt » à côté de l'exécutable range réglages et journal dans
+    /// le dossier « data » voisin (clé USB…) au lieu de %APPDATA%\TaskbarVisu.
+    /// </summary>
+    public static bool Portable { get; } = File.Exists(Path.Combine(AppContext.BaseDirectory, "portable.txt"));
+
+    public static string DataDir { get; } = Portable
+        ? Path.Combine(AppContext.BaseDirectory, "data")
+        : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "TaskbarVisu");
 }

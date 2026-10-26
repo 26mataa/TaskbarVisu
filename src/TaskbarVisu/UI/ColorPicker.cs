@@ -149,6 +149,9 @@ internal sealed class ColorPickerButton : StackPanel
 
     public string Hex { get; private set; } = "#FFFFFF";
 
+    /// <summary>Affiche une autre couleur sans déclencher <see cref="ColorChanged"/>.</summary>
+    public void SetHex(string hex) => SetColor(hex, raise: false);
+
     /// <summary>Diagnostic : rend le contenu du sélecteur dans une image, sans ouvrir la fenêtre surgissante.</summary>
     public void RenderPreview(string path)
     {

@@ -10,7 +10,7 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <AssemblyName>TaskbarVisu</AssemblyName>
     <RootNamespace>TaskbarVisu</RootNamespace>
-    <Version>0.8.3</Version>
+    <Version>0.9.0</Version>
     <Product>TaskbarVisu</Product>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets\TaskbarVisu.ico</ApplicationIcon>

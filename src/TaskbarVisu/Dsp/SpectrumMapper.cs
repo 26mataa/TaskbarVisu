@@ -61,15 +61,22 @@ internal sealed class SpectrumMapper
     }
 
     /// <summary>Valeurs en dB : interpolation ou max, + pente (tilt).</summary>
-    public void MapDb(ReadOnlySpan<float> db, Span<float> dst, bool applyTilt = true)
+    /// <param name="smooth">Interpolation de Catmull-Rom dans les graves : courbe lisse, sans angle entre deux cases.</param>
+    public void MapDb(ReadOnlySpan<float> db, Span<float> dst, bool applyTilt = true, bool smooth = false)
     {
         for (int i = 0; i < _count; i++)
         {
             float v;
             if (_interp[i])
             {
-                float a = db[_lo[i]], b = db[_hi[i]];
-                v = a + (b - a) * _frac[i];
+                int lo = _lo[i], hi = _hi[i];
+                float a = db[lo], b = db[hi], t = _frac[i];
+                if (smooth)
+                {
+                    float p0 = db[Math.Max(1, lo - 1)], p3 = db[Math.Min(db.Length - 1, hi + 1)];
+                    v = 0.5f * (2 * a + (b - p0) * t + (2 * p0 - 5 * a + 4 * b - p3) * t * t + (3 * (a - b) + p3 - p0) * t * t * t);
+                }
+                else v = a + (b - a) * t;
             }
             else
             {

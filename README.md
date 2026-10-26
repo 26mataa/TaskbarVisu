@@ -8,29 +8,38 @@ drawn straight into the empty space on each side of your icons, in a dot-matrix 
 ![TaskbarVisu on the taskbar, three palettes](docs/showcase.png)
 
 ```
-> CAPTURE ........ WASAPI loopback, everything your PC plays
-> RENDER ......... SkiaSharp into layered Win32 windows, click-through, ~0.5 ms per frame
-> FOOTPRINT ...... ~3 % of one core at 60 fps, ~0 % in silence
-> LAYOUT ......... auto-detects the taskbar (top/bottom, compact, DPI) and widgets like FluentFlyout
+> CAPTURE ........ WASAPI: the whole PC, one output, ONE APP (process loopback) or an input
+> RENDER ......... SkiaSharp into layered Win32 windows, click-through, ~0.65 ms per frame
+> FOOTPRINT ...... ~5 % of one core at 60 fps, ~0 % in silence
+> LAYOUT ......... auto-detects the taskbar (top/bottom, compact, DPI, left-aligned icons) and widgets like FluentFlyout
+> SCREENS ........ main screen, a chosen one, or every taskbar at once
 ```
 
 ## Modules
 
-![The nine modules](docs/modules.png)
+![The modules](docs/modules.png)
 
 | | |
 |---|---|
 | **Levels + LUFS** | segmented L/R peak meter, peak hold, clip, BS.1770 loudness with target |
 | **Spectrogram** | scrolling frequency history, coloured by intensity |
-| **Spectrum** | bars, LED dots, filled curve or line, held peaks, detected note |
+| **Spectrum** | MiniMeters-style relief (smooth curve shaded by level, stereo side trace), bars, LED dots, filled curve or line; held peaks, peak readout (level, frequency, note) |
 | **VU meter** | LED arc or analogue needle, ~300 ms ballistics, mono or stereo |
 | **Stereo imager** | polar vectorscope by band + panorama/width per frequency, phase correlation |
-| **Tuner / key** | note + cents, or the song's key on a mini piano (English, solfège or Camelot) |
+| **Tuner / key** | note + cents, or the song's key on a mini piano (English, solfège or Camelot), with key history |
 | **Waveform** | mirror, envelope or triggered oscilloscope |
 | **Loudness history** | LUFS over 15 s to 5 min against your target |
-| **Piano roll** | the notes actually played, octave included, on a 3–6 octave keyboard with scrolling history |
+| **Piano roll** | the notes actually played, octave included, on a 3–6 octave keyboard with scrolling history: dedicated two-resolution FFT, peaks accurate to a few cents, harmonics sieved out |
+| **XY oscilloscope** | goniometer or Lissajous drawn in phosphor that fades like a CRT |
+| **Raw data** | the samples as your sound card sees them, in scrolling hex or a bit matrix. Purely experimental |
 
-Pick, order and size them per side; each module can use the global palette, another palette or a solid colour.
+The *Layout* tab shows your taskbar in miniature, modules to scale: click one to set its width, drag it
+to reorder or switch sides, or group them all in the middle when your icons are left-aligned. Each module
+can use the global palette, another palette, its own gradient or a solid colour. On launch they run a
+short LED *self-test* before going live.
+
+On first launch a 5-step guide lights up the free areas on your real taskbar, lets you pick a look and a
+module pack (Studio, Musician, Minimal or your own), then points at the tray icon. Replay it from *General*.
 
 ## Key detection that knows when to shut up
 
@@ -48,18 +57,25 @@ Pick, order and size them per side; each module can use the global palette, anot
 
 ![Settings window](docs/settings.png)
 
-One-click presets (Lab, MiniMeters-like, CRT Phosphor, Synthwave, Vaporwave, Chrome Y2K, Toxic, RGB),
-14 palettes including animated RGB, real colour picker, pixel or smooth font, scanlines, per-module options
+One-click presets (Lab, MiniMeters-like, CRT Phosphor, Synthwave, Vaporwave, Chrome Y2K, Toxic, RGB,
+and hardware looks: VFD, LCD, Nixie), 17 palettes including animated RGB, custom gradients of 2 to 8
+colours (global or per module), real colour picker, pixel or smooth font, scanlines, per-module options
 tucked behind *More options*. UI in English, French, Spanish and German (follows Windows).
+
+- **Share a style** as a short `TBV1:…` code (paste it on Discord) or a `.tbvstyle` file.
+- **Listen to one app only**: FL Studio without Discord, a game without your music, or a mic/line input.
+- **Global hotkey** (Ctrl + Alt + V by default) hides / shows the visualizers, even in games.
+- **Built-in updates**: checks GitHub releases, one click installs the new version and restarts.
 
 ## Download
 
 Grab the latest build on the [Releases](../../releases) page:
 
 - **Installer** `TaskbarVisu-x.y.z-setup.exe`: per-user install (no admin rights), Start menu entry,
-  clean uninstall.
+  clean uninstall, in-app updates.
 - **Portable** `TaskbarVisu-x.y.z-portable.zip`: one self-contained `.exe`, nothing to install.
-  Settings live in `%APPDATA%\TaskbarVisu`.
+  The `portable.txt` next to it keeps the settings in a `data` folder beside the exe (USB stick);
+  delete it to use `%APPDATA%\TaskbarVisu` instead.
 
 Windows 11 x64, horizontal taskbar. The binaries are not code-signed, so SmartScreen may show
 *Unknown publisher*: click *More info → Run anyway*.
@@ -72,11 +88,11 @@ Windows 11 x64, horizontal taskbar. The binaries are not code-signed, so SmartSc
 dotnet run --project src/TaskbarVisu -c Release
 ```
 
-Portable build and installer (Inno Setup 6):
+Full release (self-contained exe, portable zip, Inno Setup 6 installer, SHA-256 sums and winget
+manifests in `build/`, nothing is published):
 
 ```
-dotnet publish src/TaskbarVisu -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -p:DebugType=none -o build/portable
-ISCC.exe /DAppVersion=0.8.3 installer/TaskbarVisu.iss
+powershell -ExecutionPolicy Bypass -File tools/build-release.ps1
 ```
 
 Detailed technical documentation (DSP, test bench, diagnostics flags) is in [README.fr.md](README.fr.md) (French).

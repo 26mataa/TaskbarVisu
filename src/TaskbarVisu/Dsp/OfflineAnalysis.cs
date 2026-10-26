@@ -165,26 +165,26 @@ internal static class OfflineAnalysis
             ? (TestSong.Parse(spec["synth:".Length..], 0) ?? throw new ArgumentException(spec)).Sample
             : (TestChord.Parse(spec) ?? throw new ArgumentException(spec)).Sample;
         var sb = new StringBuilder();
-        if (Environment.GetEnvironmentVariable("KEY_PEAKS") == "1") KeyAnalyzer.DebugPeaks = new StringBuilder();
+        if (Environment.GetEnvironmentVariable("KEY_PEAKS") == "1") HarmonicSieve.DebugPeaks = new StringBuilder();
         Simulate(sample, seconds, (t, keys) =>
         {
             float max = keys.Notes.Max();
             var notes = Enumerable.Range(0, 128).Where(m => max > 0 && keys.Notes[m] >= max * 0.03f)
                 .Select(m => $"{TestChord.NoteName(m)}:{20 * MathF.Log10(keys.Notes[m] / max):0}");
             sb.AppendLine($"{t,5:0.00}s accordage={keys.TuningCents:+0;-0}  {string.Join(" ", notes)}");
-            if (KeyAnalyzer.DebugPeaks is { } peaks) { sb.Append("   ").Append(peaks); peaks.Clear(); }
+            if (HarmonicSieve.DebugPeaks is { } peaks) { sb.Append("   ").Append(peaks); peaks.Clear(); }
         });
         return sb.ToString();
     }
 
-    /// <summary>Fait passer une source synthétique dans l'analyse, image par image (60 i/s) ; appelle onFrame à chaque bloc analysé.</summary>
-    private static void Simulate(Func<double, (float L, float R)> sample, double seconds, Action<double, KeyAnalyzer> onFrame)
+    /// <summary>Fait passer une source synthétique dans le suivi de notes du piano roll, image par image (60 i/s) ; appelle onFrame à chaque analyse.</summary>
+    private static void Simulate(Func<double, (float L, float R)> sample, double seconds, Action<double, NoteTracker> onFrame)
     {
         const int rate = 48000;
         var ring = new SampleRing(1 << 17);
         ring.Reset(rate);
         var analyzer = new AudioAnalyzer(ring);
-        var keys = analyzer.Harmony;
+        var notes = analyzer.Notes;
         const double dt = 1 / 60.0;
         int perFrame = (int)(rate * dt);
         var stereo = new float[perFrame * 2];
@@ -199,7 +199,7 @@ internal static class OfflineAnalysis
             }
             ring.Write(stereo, perFrame);
             analyzer.Process(dt);
-            if (keys.Update(analyzer, dt)) onFrame(t, keys);
+            if (notes.Update(analyzer, dt)) onFrame(t, notes);
         }
     }
 

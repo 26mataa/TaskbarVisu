@@ -1,4 +1,4 @@
-using SkiaSharp;
+﻿using SkiaSharp;
 
 namespace TaskbarVisu.Rendering;
 
@@ -71,7 +71,7 @@ internal sealed class LabelPainter : IDisposable
     }
 
     /// <summary>Texte pour la police lissée : majuscules, et « b » à la place du symbole bémol.</summary>
-    private static string Smooth(string text) => text.ToUpperInvariant().Replace("♭", "b").Replace("◆", ">");
+    private static string Smooth(string text) => text.ToUpperInvariant().Replace("♭", "b").Replace("◆", ">").Replace("ᵐ", "m");
 
     public void Dispose()
     {

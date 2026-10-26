@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using SkiaSharp;
 using TaskbarVisu.Core;
 using TaskbarVisu.Dsp;
@@ -124,9 +124,13 @@ internal sealed class TunerModule : VisualizerModule
                 }
                 // Morceau modal : la note où la musique se pose remplace la confiance, « ◆F MIX » = centré sur Fa, mixolydien.
                 int centre = tonic < 0 ? -1 : _analyzer!.Centre;
+                // Historique (option) : « <C <AM » = tonalités précédentes du morceau, la plus récente d'abord.
+                var history = tonic >= 0 && Flag("history") ? _analyzer!.KeyHistory : Array.Empty<int>();
                 string? detail = tonic < 0 ? null
                     : centre >= 0
                         ? $"◆{Harmony.NoteName(centre, Latin, Harmony.KeyUsesFlats(tonic, minor))} {Harmony.ModeName(centre, tonic, minor)}"
+                    : history.Count > 0
+                        ? string.Join(" ", history.Take(2).Select(k => "<" + Harmony.KeyName(k % 12, k >= 12, Latin) + (k >= 12 ? "ᵐ" : "")))
                         : ((int)Math.Round(_analyzer!.KeyConfidence * 100)).ToString(CultureInfo.InvariantCulture) + "%";
                 var scale = tonic < 0 ? Array.Empty<int>() : Harmony.Scale(tonic, minor);
                 // Les notes qui changent entre majeur et mineur (tierce, sixte, septième) sont atténuées si le mode est incertain.

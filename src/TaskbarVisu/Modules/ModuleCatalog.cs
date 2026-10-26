@@ -130,8 +130,10 @@ internal static class ModuleCatalog
             DefaultModuleWidth, 70,
             new[]
             {
-                Choice("style", "Style", 0, new[] { "Barres", "Points LED", "Courbe remplie", "Ligne" }),
-                Toggle("note", "Note détectée", true),
+                Choice("style", "Style", 0, new[] { "Relief (couleur selon le niveau)", "Barres", "Points LED", "Courbe remplie", "Ligne" }),
+                Toggle("note", "Lecture du pic (niveau, fréquence, note)", true),
+                Toggle("side", "Spectre stéréo en filigrane", true, advanced: true,
+                    help: "Style relief : ligne fine du canal « côtés », ce qui diffère entre gauche et droite."),
                 Toggle("peaks", "Crêtes maintenues", true, advanced: true),
                 Toggle("grid", "Grille des fréquences", true, advanced: true),
                 Slider("floor", "Plancher", -84, -120, -40, 1, "dB", advanced: true),
@@ -184,6 +186,8 @@ internal static class ModuleCatalog
                     help: "Plus long = plus stable, plus court = suit plus vite les changements de tonalité."),
                 Slider("reference", "La de référence", 440, 415, 466, 1, "Hz", advanced: true),
                 Slider("tolerance", "Tolérance « juste »", 5, 1, 20, 1, "cents", advanced: true),
+                Toggle("history", "Historique des tonalités du morceau", false, advanced: true,
+                    help: "Mode tonalité : « <C <Aᵐ » = tonalités précédentes, à la place du pourcentage de confiance."),
             },
             () => new TunerModule()),
 
@@ -202,6 +206,27 @@ internal static class ModuleCatalog
                     help: "Plus haut = les notes discrètes s'affichent aussi."),
             },
             () => new PianoRollModule()),
+
+        new("xyscope", "Oscilloscope XY",
+            "Le son tracé en points lumineux qui s'éteignent lentement, comme un écran cathodique. Mono = trait vertical, stéréo = nuage.",
+            DefaultModuleWidth, 50,
+            new[]
+            {
+                Choice("mode", "Tracé", 0, new[] { "Goniomètre (milieu / côtés)", "Lissajous (gauche / droite)" }),
+                Slider("persistence", "Rémanence", 0.35, 0.05, 1.5, 0.05, "s"),
+                Toggle("stretch", "Étirer sur toute la largeur", true, advanced: true),
+            },
+            () => new XyScopeModule()),
+
+        new("rawdata", "Données brutes",
+            "L'audio tel que la carte son le voit : échantillons en hexadécimal ou en matrice de bits. Purement expérimental.",
+            DefaultModuleWidth, 60,
+            new[]
+            {
+                Choice("mode", "Affichage", 0, new[] { "Hexadécimal", "Bits (matrice)" }),
+                Slider("speed", "Vitesse de défilement", 30, 5, 120, 5),
+            },
+            () => new RawDataModule()),
     };
 
     public static ModuleInfo? Find(string id) => Array.Find(All, m => m.Id == id);

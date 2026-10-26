@@ -79,9 +79,8 @@ internal sealed class KeyAnalyzer
     private int _prevCount;
 
     private readonly float[] _frame = new float[12], _bassFrame = new float[12], _pureFrame = new float[12];
-    private readonly int[] _order = new int[MaxPeaks];
-    private readonly float[] _orderKeys = new float[MaxPeaks];
-    private readonly float[] _residual = new float[MaxPeaks];
+    private readonly HarmonicSieve _sieve = new(MaxPeaks);
+    private readonly Func<float, float> _binWidth;
 
     /// <summary>
     /// Notes réellement jouées au dernier bloc analysé, harmoniques écartées : amplitude par numéro MIDI
@@ -129,6 +128,7 @@ internal sealed class KeyAnalyzer
 
     public KeyAnalyzer()
     {
+        _binWidth = _ => _binHz;
         double sum = 0;
         for (int i = 0; i < FftSize; i++)
         {
@@ -318,6 +318,7 @@ internal sealed class KeyAnalyzer
         KeyConfidence = 0;
         _candidate = -1;
         _centre = _centreCandidate = _centreKey = -1;
+        _keyHistory.Clear();
     }
 
     private void Configure(int sampleRate)
@@ -468,7 +469,7 @@ internal sealed class KeyAnalyzer
         Normalize(_frame);
         Normalize(_bassFrame);
         Normalize(_pureFrame);
-        BuildNotes(reference);
+        _sieve.Build(_peakFreq, _peakAmp, _peakCount, Notes, reference, _binWidth);
         Array.Clear(_notesFrame);
         Array.Clear(_lowNotesFrame);
         for (int m = 0; m < 128; m++)
@@ -657,11 +658,28 @@ internal sealed class KeyAnalyzer
 
     private void SetKey(int key)
     {
+        // Historique du morceau en cours : la tonalité quittée passe en tête.
+        if (KeyTonic >= 0)
+        {
+            int previous = KeyTonic + (KeyMinor ? 12 : 0);
+            if (previous != key)
+            {
+                _keyHistory.Remove(previous);
+                _keyHistory.Insert(0, previous);
+                if (_keyHistory.Count > 3) _keyHistory.RemoveAt(3);
+            }
+        }
+        _keyHistory.Remove(key);
         KeyTonic = key % 12;
         KeyMinor = key >= 12;
         _candidate = -1;
         _candidateTime = 0;
     }
+
+    private readonly List<int> _keyHistory = new();
+
+    /// <summary>Tonalités précédentes du morceau en cours (index 0..23, la plus récente d'abord).</summary>
+    public IReadOnlyList<int> KeyHistory => _keyHistory;
 
     /// <summary>Diagnostic : meilleures tonalités d'un chroma quelconque (moyenne des profils), et le choix de chaque profil.</summary>
     public static string RankKeys(double[] chroma, int count)
@@ -690,120 +708,6 @@ internal sealed class KeyAnalyzer
             vp += p * p;
         }
         return vc < 1e-12 ? 0 : num / Math.Sqrt(vc * vp);
-    }
-
-    /// <summary>
-    /// Notes réellement jouées, octave comprise, par soustraction des harmoniques : du grave à l'aigu, chaque pic
-    /// est d'abord « expliqué » par les harmoniques possibles des notes plus graves (au plus HarmonicCeiling(h)
-    /// de leur amplitude propre, et seulement si leur série harmonique monte bien jusque-là, voir InSeries).
-    /// Seul le reste compte comme note jouée : une harmonique s'éteint, une note qui tombe sur une harmonique
-    /// (octave doublée, Mi4 au-dessus d'un La2) reste visible, et les harmoniques de plusieurs notes qui se
-    /// superposent (Sol5 = ×2 de Sol4 et ×3 de Do4) s'additionnent au lieu de passer pour une note.
-    /// </summary>
-    private void BuildNotes(double reference)
-    {
-        Array.Clear(Notes);
-        int n = _peakCount;
-        if (n == 0) return;
-
-        for (int i = 0; i < n; i++)
-        {
-            _order[i] = i;
-            _orderKeys[i] = _peakFreq[i];
-        }
-        Array.Sort(_orderKeys, _order, 0, n);
-        float maxAmp = 0;
-        for (int i = 0; i < n; i++) maxAmp = Math.Max(maxAmp, _peakAmp[i]);
-
-        for (int a = 0; a < n; a++)
-        {
-            int j = _order[a];
-            float f = _peakFreq[j], amp = _peakAmp[j];
-            float explained = 0;
-            for (int b = 0; b < a; b++)
-            {
-                int i = _order[b];
-                if (_residual[i] <= 0) continue;
-                // Tri grossier (les harmoniques aiguës d'un piano sont un peu trop hautes), le test exact est dans InSeries.
-                float ratio = f / _peakFreq[i];
-                int h = (int)MathF.Round(ratio);
-                if (h < 2 || h > 12 || ratio < h * 0.988f || ratio > h * (1.012f + 0.0004f * h * h)) continue;
-                if (InSeries(_peakFreq[i], h, f, n)) explained += _residual[i] * HarmonicCeiling(h);
-            }
-            _residual[j] = amp - explained;
-            if (f < 40 || f > 4500) continue;
-
-            int midi = (int)Math.Round(69 + 12 * Math.Log2(f / reference));
-            if (midi is >= 0 and < 128) Notes[midi] = Math.Max(Notes[midi], Math.Max(0, _residual[j]));
-
-            if (DebugPeaks != null) DebugPeaks.Append($"{f:F1}:{amp / maxAmp:F3}:{Math.Max(0, _residual[j]) / amp:F2} ");
-        }
-        DebugPeaks?.AppendLine();
-    }
-
-    /// <summary>Diagnostic (--notetrace avec KEY_PEAKS=1) : pics de chaque image, « fréquence:amplitude:part non expliquée ».</summary>
-    public static System.Text.StringBuilder? DebugPeaks;
-
-    /// <summary>
-    /// Amplitude maximale attendue de l'harmonique h, relative à la fondamentale : un peu au-dessus de 1/h,
-    /// le profil des timbres les plus riches courants (dents de scie ; piano ≈ 1/h^1,2, et décroît plus vite).
-    /// </summary>
-    private static float HarmonicCeiling(int h) => 1.15f / h;
-
-    /// <summary>
-    /// Vrai si le pic de fréquence f peut être l'harmonique h de f0 : toutes les harmoniques intermédiaires sont
-    /// présentes et la fréquence colle. Une basse presque pure (sinus, sub) sans harmoniques 3 et 4 n'explique
-    /// donc pas la tierce de l'accord qui tombe sur son ×5. L'inharmonicité (partiels du piano un peu trop hauts)
-    /// est estimée sur la série elle-même, par une médiane qui résiste aux partiels confondus avec ceux d'une
-    /// autre note de l'accord.
-    /// </summary>
-    private bool InSeries(float f0, int h, float f, int n)
-    {
-        Span<float> stretch = stackalloc float[h];
-        Span<float> sorted = stackalloc float[h];
-        int found = 0;
-        for (int k = 2; k <= h; k++)
-        {
-            float inharmonicity = 0;
-            if (found > 0)
-            {
-                stretch[..found].CopyTo(sorted);
-                sorted[..found].Sort();
-                inharmonicity = Math.Max(0, sorted[found / 2]);
-            }
-            float expected = k * f0 * MathF.Sqrt(1 + inharmonicity * k * k);
-            if (k == h) return MathF.Abs(f - expected) <= 0.012f * expected;
-            var (freq, a) = PeakNear(expected, n);
-            if (a <= 0)
-            {
-                // Partiel non résolu car collé à une note voisine plus forte (moins de 4,5 cases d'écart) : supposé présent.
-                if (!HasPeakWithin(expected, 4.5f * _binHz, n)) return false;
-                continue;
-            }
-            float r = freq / (k * f0);
-            stretch[found++] = (r * r - 1) / (k * k);
-        }
-        return false;
-    }
-    private bool HasPeakWithin(float target, float distance, int n)
-    {
-        int pos = Array.BinarySearch(_orderKeys, 0, n, target - distance);
-        if (pos < 0) pos = ~pos;
-        return pos < n && _orderKeys[pos] <= target + distance;
-    }
-
-    /// <summary>Plus fort pic à ±1,2 % de la fréquence donnée (amplitude 0 s'il n'y en a pas) ; pics triés dans _orderKeys.</summary>
-    private (float Freq, float Amp) PeakNear(float target, int n)
-    {
-        float tolerance = 0.012f * target, freq = target, best = 0;
-        int pos = Array.BinarySearch(_orderKeys, 0, n, target - tolerance);
-        if (pos < 0) pos = ~pos;
-        for (; pos < n && _orderKeys[pos] <= target + tolerance; pos++)
-        {
-            float a = _peakAmp[_order[pos]];
-            if (a > best) { best = a; freq = _orderKeys[pos]; }
-        }
-        return (freq, best);
     }
 
     /// <summary>Fondamentale par somme harmonique pondérée sur les pics (robuste aux erreurs d'octave).</summary>
@@ -858,7 +762,7 @@ internal sealed class KeyAnalyzer
     }
 
     /// <summary>
-    /// Part de l'énergie des pics (triés dans _orderKeys par BuildNotes) dont la fréquence était déjà là au bloc
+    /// Part de l'énergie des pics (triés par le crible harmonique) dont la fréquence était déjà là au bloc
     /// précédent. Une note tenue reste exactement en place ; la voix glisse sans arrêt, une toux n'a pas de pics stables.
     /// </summary>
     private float PeakPersistence()
@@ -866,7 +770,8 @@ internal sealed class KeyAnalyzer
         float matched = 0, total = 0;
         for (int a = 0; a < _peakCount; a++)
         {
-            float f = _orderKeys[a], power = _peakAmp[_order[a]] * _peakAmp[_order[a]];
+            int j = _sieve.Order[a];
+            float f = _sieve.SortedFreq[a], power = _peakAmp[j] * _peakAmp[j];
             total += power;
             float tolerance = Math.Max(0.004f * f, 0.5f * _binHz);
             int pos = Array.BinarySearch(_prevKeys, 0, _prevCount, f);
@@ -875,7 +780,7 @@ internal sealed class KeyAnalyzer
                 matched += power;
         }
 
-        Array.Copy(_orderKeys, _prevKeys, _peakCount);
+        Array.Copy(_sieve.SortedFreq, _prevKeys, _peakCount);
         _prevCount = _peakCount;
         return total > 0 ? matched / total : 0;
     }

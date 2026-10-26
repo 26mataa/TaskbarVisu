@@ -20,13 +20,20 @@ internal sealed class StereoImagerModule : VisualizerModule
     private static readonly SKPoint Offscreen = new(-10000, -10000);
     private static readonly float[] BandTone = { 0.05f, 0.5f, 0.95f };
 
+    // Sous ~-70 dBFS (bruit de fond, dither), l'imageur se tait : la normalisation amplifierait ce bruit
+    // en nuage de points et le module ne passerait jamais au repos.
+    private const float Gate = 3e-4f;
+    // Gain maximal de la normalisation : il faut au moins ~-50 dBFS pour remplir le demi-cercle.
+    private const float EnvFloor = 3e-3f;
+
     // Points normalisés (x ∈ [-1, 1], y ∈ [0, 1]) par bande et par image, pour la rémanence.
     private readonly SKPoint[,][] _points = new SKPoint[Bands, Frames][];
     private readonly int[,] _counts = new int[Bands, Frames];
     private int _head;
     private SKPoint[] _screen = Array.Empty<SKPoint>();
     private int _screenUsed;
-    private float _env = 1e-3f;
+    private float _env = EnvFloor;
+    private double _quiet; // secondes passées sous le seuil Gate
 
     // Séparation en 3 bandes (filtres à un pôle à 250 Hz et 2,5 kHz) pour chaque canal.
     private int _filterRate;
@@ -114,7 +121,8 @@ internal sealed class StereoImagerModule : VisualizerModule
         _sLR = _sLR * k + lr;
         _sLL = _sLL * k + ll;
         _sRR = _sRR * k + rr;
-        bool audible = _sLL + _sRR > 1e-7;
+        _quiet = Math.Max(audio.PeakL, audio.PeakR) < Gate ? _quiet + dt : 0;
+        bool audible = _quiet < 0.3 && _sLL + _sRR > 1e-7;
         float target = audible ? (float)(_sLR / Math.Sqrt(_sLL * _sRR + 1e-20)) : 0;
         float smooth = (float)Math.Min(1, dt * 10);
         _corr += (Math.Clamp(target, -1, 1) - _corr) * smooth;
@@ -152,7 +160,8 @@ internal sealed class StereoImagerModule : VisualizerModule
         }
 
         float peak = MathF.Sqrt(audio.PeakL * audio.PeakL + audio.PeakR * audio.PeakR);
-        _env = Math.Max(Math.Max(peak, 1e-4f), _env * (float)Math.Exp(-dt / 2.0));
+        _env = Math.Max(Math.Max(peak, EnvFloor), _env * (float)Math.Exp(-dt / 2.0));
+        bool gated = _quiet > 0;
         int step = Math.Max(1, (n + capacity - 1) / capacity);
 
         for (int i = 0; i < n; i++)
@@ -160,7 +169,7 @@ internal sealed class StereoImagerModule : VisualizerModule
             float l = left[i], r = right[i];
             _l1 += _k1 * (l - _l1); _l2 += _k2 * (l - _l2);
             _r1 += _k1 * (r - _r1); _r2 += _k2 * (r - _r2);
-            if (i % step != 0) continue;
+            if (gated || i % step != 0) continue;
 
             if (!bands)
             {

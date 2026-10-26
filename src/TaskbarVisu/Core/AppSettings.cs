@@ -14,11 +14,32 @@ internal enum PaletteChoice
 {
     Magma, Brasier, Spectral, Phosphore, Glace, Accent, Custom,
     Rainbow, RainbowAnimated, Synthwave, Vaporwave, Toxic, Monochrome, Chrome,
+    Vfd, Lcd, Nixie,
 }
 
 internal enum ZoneAlign { Start, Center, End }
 
-internal enum BackgroundChoice { None, Dark, Black }
+/// <summary>Fond des modules ; « Lcd » = écran à cristaux liquides rétroéclairé (fond clair olive).</summary>
+internal enum BackgroundChoice { None, Dark, Black, Lcd }
+
+/// <summary>Ce que TaskbarVisu écoute.</summary>
+internal enum AudioSourceKind
+{
+    /// <summary>Tout le son du PC (sortie par défaut, en loopback).</summary>
+    SystemOutput,
+    /// <summary>Une sortie audio précise (casque, enceintes…), en loopback.</summary>
+    OutputDevice,
+    /// <summary>Une seule application (FL Studio, Spotify…), sans les autres sons.</summary>
+    Application,
+    /// <summary>Une entrée : micro, entrée ligne, carte son.</summary>
+    Input,
+}
+
+/// <summary>Icônes de la barre alignées à gauche : un seul grand espace libre.</summary>
+internal enum SingleGapMode { Split, Center }
+
+/// <summary>Raccourci clavier global pour masquer / afficher les visualiseurs.</summary>
+internal enum HotkeyChoice { None, CtrlAltV, CtrlShiftV, CtrlAltH }
 
 /// <summary>Couleurs d'un module : celles de l'apparence générale, une autre palette, ou une couleur unie.</summary>
 internal enum ModuleColorMode { Global, Palette, Solid }
@@ -32,6 +53,8 @@ internal sealed class ModuleConfig
     public ModuleColorMode Colors { get; set; } = ModuleColorMode.Global;
     public PaletteChoice ColorPalette { get; set; } = PaletteChoice.Synthwave;
     public string ColorSolid { get; set; } = "#00E5FF";
+    /// <summary>Dégradé propre au module quand sa palette est « Personnalisée » (null = celui de l'apparence générale).</summary>
+    public List<ColorStop>? Gradient { get; set; }
     public Dictionary<string, double> Options { get; set; } = new();
 
     public double Get(string key)
@@ -43,7 +66,7 @@ internal sealed class ModuleConfig
 
 internal sealed class AppSettings
 {
-    public const int CurrentVersion = 4;
+    public const int CurrentVersion = 5;
     public const int MaxModuleWidth = 400;
 
     public int Version { get; set; } = CurrentVersion;
@@ -52,9 +75,25 @@ internal sealed class AppSettings
     public Language Language { get; set; } = Language.Auto;
     public bool StartWithWindows { get; set; }
     public bool CloseToTray { get; set; } = true;
+    public HotkeyChoice Hotkey { get; set; } = HotkeyChoice.CtrlAltV;
+    public bool CheckUpdates { get; set; } = true;
+    /// <summary>Version dont l'utilisateur a refusé la mise à jour (plus de rappel pour celle-là).</summary>
+    public string? SkippedVersion { get; set; }
+    /// <summary>Petite animation « auto-test » des segments au lancement.</summary>
+    public bool BootAnimation { get; set; } = true;
+
+    // Source audio
+    public AudioSourceKind AudioSource { get; set; } = AudioSourceKind.SystemOutput;
+    /// <summary>Identifiant du périphérique choisi (sortie ou entrée), et son nom pour l'afficher s'il est débranché.</summary>
+    public string? AudioDeviceId { get; set; }
+    public string? AudioDeviceName { get; set; }
+    /// <summary>Nom du processus écouté (sans « .exe »), par exemple « FL64 ».</summary>
+    public string? AudioApp { get; set; }
 
     // Affichage
     public string? MonitorDevice { get; set; }
+    /// <summary>Visualiseurs sur la barre des tâches de chaque écran.</summary>
+    public bool AllMonitors { get; set; }
     public int Fps { get; set; } = 60;
     public bool HideWhenFullscreen { get; set; } = true;
     public double Opacity { get; set; } = 1.0;
@@ -64,6 +103,9 @@ internal sealed class AppSettings
     public ColorChoice ColorMode { get; set; } = ColorChoice.Default;
     public string CustomColor { get; set; } = "#D4DCFF";
     public PaletteChoice Palette { get; set; } = PaletteChoice.Magma;
+    /// <summary>Palette « Personnalisée » : dégradé de 2 à 8 couleurs.</summary>
+    public List<ColorStop> Gradient { get; set; } = Gradients.Default();
+    // Anciens réglages (v0.8) : deux couleurs grave / aigu, converties en dégradé par MigrateTo5.
     public string PaletteLow { get; set; } = "#3A0CA3";
     public string PaletteHigh { get; set; } = "#FFD60A";
     public BackgroundChoice Background { get; set; } = BackgroundChoice.None;
@@ -73,6 +115,7 @@ internal sealed class AppSettings
 
     // Disposition
     public bool FillZones { get; set; }
+    public SingleGapMode SingleGap { get; set; } = SingleGapMode.Split;
     public ZoneAlign LeftAlign { get; set; } = ZoneAlign.Start;
     public ZoneAlign RightAlign { get; set; } = ZoneAlign.End;
     public int EdgeFade { get; set; } = 8;
@@ -117,7 +160,11 @@ internal sealed class AppSettings
             Right.Add(DefaultLayoutConfig(id, previous));
 
         // Modules disponibles mais masqués par défaut : il suffit de les cocher.
-        foreach (var (id, zone) in new[] { ("vu", Left), ("loudness", Right), ("pianoroll", Right) })
+        foreach (var (id, zone) in new[]
+                 {
+                     ("vu", Left), ("xyscope", Left),
+                     ("loudness", Right), ("pianoroll", Right), ("rawdata", Right),
+                 })
         {
             var hidden = DefaultLayoutConfig(id, previous);
             hidden.Enabled = false;
@@ -125,6 +172,7 @@ internal sealed class AppSettings
         }
 
         FillZones = false;
+        SingleGap = SingleGapMode.Split;
         LeftAlign = ZoneAlign.Start;
         RightAlign = ZoneAlign.End;
         EdgeFade = 8;
@@ -161,6 +209,7 @@ internal sealed class AppSettings
         }
         if (Version < 3) MigrateTo3();
         if (Version < 4) MigrateTo4();
+        if (Version < 5) MigrateTo5();
         Version = CurrentVersion;
 
         var seen = new HashSet<string>();
@@ -181,6 +230,8 @@ internal sealed class AppSettings
         VerticalPadding = Math.Clamp(VerticalPadding, 0, 12);
         DetectionIntervalMs = Math.Clamp(DetectionIntervalMs, 500, 10000);
         if (FftSize is not (2048 or 4096 or 8192)) FftSize = 4096;
+        Gradient = Gradients.Clean(Gradient) ?? Gradients.Default();
+        foreach (var m in AllModules) m.Gradient = Gradients.Clean(m.Gradient);
     }
 
     /// <summary>v0.2 → v0.3 : les couleurs des modules passent par le système commun « Couleurs ».</summary>
@@ -229,6 +280,22 @@ internal sealed class AppSettings
             roll.Enabled = false;
             Right.Add(roll);
         }
+    }
+
+    /// <summary>
+    /// v0.8 → v0.9 : nouveau style « relief » en tête de l'analyseur de spectre (les autres styles se décalent) ;
+    /// la palette personnalisée à deux couleurs devient un dégradé.
+    /// </summary>
+    private void MigrateTo5()
+    {
+        foreach (var m in AllModules)
+        {
+            if (m.Id == "spectrum" && m.Options.TryGetValue("style", out var style))
+                m.Options["style"] = style + 1;
+        }
+        // Couleurs par défaut jamais modifiées : on garde le nouveau dégradé proposé.
+        if (PaletteLow != "#3A0CA3" || PaletteHigh != "#FFD60A")
+            Gradient = Gradients.FromLowHigh(PaletteLow, PaletteHigh);
     }
 
     private static List<ModuleConfig> Clean(List<ModuleConfig>? list, HashSet<string> seen)

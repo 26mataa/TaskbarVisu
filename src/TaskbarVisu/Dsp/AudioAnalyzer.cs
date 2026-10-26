@@ -63,10 +63,15 @@ internal sealed class AudioAnalyzer
     private KeyAnalyzer? _harmony;
 
     /// <summary>
-    /// Analyse harmonique haute résolution (accordeur, piano roll) : créée au premier module qui la demande,
+    /// Analyse harmonique haute résolution (accordeur) : créée au premier module qui la demande,
     /// partagée ensuite, et calculée une seule fois par image quel que soit le nombre de modules.
     /// </summary>
     public KeyAnalyzer Harmony => _harmony ??= new KeyAnalyzer();
+
+    private NoteTracker? _notes;
+
+    /// <summary>Suivi des notes jouées pour le piano roll (plusieurs résolutions, réactif), créé à la demande.</summary>
+    public NoteTracker Notes => _notes ??= new NoteTracker();
 
     public void SetFftSize(int size)
     {

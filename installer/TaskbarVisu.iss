@@ -1,5 +1,5 @@
 ﻿; Installeur Windows de TaskbarVisu (Inno Setup 6).
-; Compilation : ISCC.exe /DAppVersion=0.8.3 installer\TaskbarVisu.iss
+; Compilation : tools\build-release.ps1 (ou ISCC.exe /DAppVersion=x.y.z installer\TaskbarVisu.iss)
 ; Attend le build autonome dans build\portable\TaskbarVisu.exe (voir README).
 
 #ifndef AppVersion
@@ -11,7 +11,10 @@ AppId={{6B0E3F52-6D2A-4C1B-9E7A-2F1C9A7D5E10}
 AppName=TaskbarVisu
 AppVersion={#AppVersion}
 AppPublisher=TaskbarVisu
-AppPublisherURL=https://github.com
+AppPublisherURL=https://github.com/26mataa/TaskbarVisu
+AppSupportURL=https://github.com/26mataa/TaskbarVisu/issues
+AppUpdatesURL=https://github.com/26mataa/TaskbarVisu/releases
+VersionInfoVersion={#AppVersion}
 DefaultDirName={localappdata}\Programs\TaskbarVisu
 DefaultGroupName=TaskbarVisu
 DisableProgramGroupPage=yes
@@ -46,6 +49,9 @@ Name: "{autodesktop}\TaskbarVisu"; Filename: "{app}\TaskbarVisu.exe"; Tasks: des
 
 [Run]
 Filename: "{app}\TaskbarVisu.exe"; Description: "{cm:LaunchProgram,TaskbarVisu}"; Flags: nowait postinstall skipifsilent
+; Mise à jour depuis l'application (silencieuse, /RELAUNCH=1) : on la relance, sans ouvrir les réglages.
+; Une installation silencieuse par winget ne passe pas ce paramètre et ne lance rien.
+Filename: "{app}\TaskbarVisu.exe"; Parameters: "--tray"; Flags: nowait; Check: ShouldRelaunch
 
 [UninstallRun]
 Filename: "{sys}\taskkill.exe"; Parameters: "/IM TaskbarVisu.exe /F"; Flags: runhidden; RunOnceId: "StopTaskbarVisu"
@@ -53,3 +59,9 @@ Filename: "{sys}\taskkill.exe"; Parameters: "/IM TaskbarVisu.exe /F"; Flags: run
 [Registry]
 ; « Lancer avec Windows » : l'entrée créée par l'application est retirée à la désinstallation.
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: none; ValueName: "TaskbarVisu"; Flags: uninsdeletevalue dontcreatekey
+
+[Code]
+function ShouldRelaunch: Boolean;
+begin
+  Result := WizardSilent and (ExpandConstant('{param:RELAUNCH|0}') = '1');
+end;

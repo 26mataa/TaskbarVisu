@@ -13,7 +13,7 @@ namespace TaskbarVisu.Rendering;
 /// Thread de rendu dédié : boucle cadencée par un timer haute résolution, deux fenêtres overlay
 /// (zone gauche / zone droite), analyse audio partagée et mise en veille quand rien ne bouge.
 /// </summary>
-internal sealed class RenderHost : IDisposable
+internal sealed partial class RenderHost : IDisposable
 {
     private sealed class Placed
     {
@@ -28,7 +28,9 @@ internal sealed class RenderHost : IDisposable
     {
         public required OverlayWindow Window { get; init; }
         public List<Placed> Items { get; } = new();
-        public bool HasContent => Items.Count > 0;
+        /// <summary>Guide de démarrage : nom de la zone présentée (les modules sont alors masqués).</summary>
+        public string? Guide { get; set; }
+        public bool HasContent => Items.Count > 0 || Guide is not null;
     }
 
     private readonly AudioCapture _audio;
@@ -73,6 +75,31 @@ internal sealed class RenderHost : IDisposable
         get => _paused;
         set => _paused = value;
     }
+
+    /// <summary>Visualiseurs masqués par l'utilisateur (raccourci clavier) ; l'audio continue d'être capté.</summary>
+    public bool UserHidden
+    {
+        get => _userHidden;
+        set
+        {
+            // Réaffichés : l'animation de démarrage est rejouée, comme un appareil qu'on rallume.
+            if (_userHidden && !value) _bootPending = true;
+            _userHidden = value;
+        }
+    }
+
+    private volatile bool _userHidden;
+
+    // Animation « auto-test » : les segments s'allument de gauche à droite, balayage retour, puis dissolution.
+    private const float BootDuration = 1.3f, BootSweep = 0.5f, BootReveal = 0.8f;
+    private volatile bool _bootPending = true;
+    private double _bootAt = -1, _now;
+    private static readonly float[] BootShotTimes = { 0.25f, 0.65f, 1.05f };
+    private int _bootShots;
+    private readonly SKPaint _bootPaint = new() { IsAntialias = false };
+
+    /// <summary>Secondes écoulées depuis le début de l'animation de démarrage, ou -1 si elle est finie.</summary>
+    private float BootTime => _bootAt < 0 || !_settings.BootAnimation || _now - _bootAt >= BootDuration ? -1 : (float)(_now - _bootAt);
 
     /// <summary>Diagnostic (--dump dossier) : enregistre régulièrement le rendu des zones en PNG.</summary>
     public string? DumpDirectory { get; set; }
@@ -138,12 +165,14 @@ internal sealed class RenderHost : IDisposable
             double now = clock.Elapsed.TotalSeconds;
             double dt = Math.Clamp(now - last, 0, 0.1);
             last = now;
+            _now = now;
 
             if (_pending is { } pending)
             {
                 _pending = null;
                 ApplySettingsInternal(pending);
             }
+            SyncGuide();
 
             var bar = _tracker.Current;
             if (bar.Version != _barVersion)
@@ -167,6 +196,7 @@ internal sealed class RenderHost : IDisposable
                 nextRaise = now + 1.0;
                 _left.Window.BringToTop();
                 _right.Window.BringToTop();
+                _pointer?.BringToTop();
             }
 
             double interval = 1.0 / Math.Max(15, _settings.Fps);
@@ -192,7 +222,7 @@ internal sealed class RenderHost : IDisposable
                     }
                 }
 
-                bool idle = _settings.PowerSaving && _analyzer.SilentSeconds > 0.5 && allIdle;
+                bool idle = _settings.PowerSaving && _analyzer.SilentSeconds > 0.5 && allIdle && BootTime < 0 && !GuideActive;
                 if (!idle || !_idlePresented)
                 {
                     RenderFrame();
@@ -211,6 +241,9 @@ internal sealed class RenderHost : IDisposable
                 nextDump = now + 5;
                 Dump(DumpDirectory);
             }
+            // Diagnostic : trois images de l'animation d'allumage (balayage, retour, fondu).
+            if (DumpDirectory is not null && _bootShots < BootShotTimes.Length && BootTime >= BootShotTimes[_bootShots])
+                SaveImages(DumpDirectory, $"boot{++_bootShots}-");
             _wasActive = active;
 
             nextFrame += interval;
@@ -306,7 +339,7 @@ internal sealed class RenderHost : IDisposable
         {
             _moduleThemes[cfg.Id] = cfg.Colors switch
             {
-                ModuleColorMode.Palette => Theme.Build(_settings, cfg.ColorPalette, null),
+                ModuleColorMode.Palette => Theme.Build(_settings, cfg.ColorPalette, null, cfg.Gradient),
                 ModuleColorMode.Solid => Theme.Build(_settings, null, Theme.Parse(cfg.ColorSolid) ?? _globalTheme.Ink),
                 _ => _globalTheme,
             };
@@ -327,12 +360,17 @@ internal sealed class RenderHost : IDisposable
 
     private void Relayout()
     {
-        foreach (var zone in Zones()) DisposeItems(zone);
+        foreach (var zone in Zones())
+        {
+            DisposeItems(zone);
+            zone.Guide = null;
+        }
         _idlePresented = false;
 
         var bar = _bar;
         if (bar is null || !bar.Valid || !bar.Supported)
         {
+            _pointer?.Hide();
             UpdateVisibility();
             return;
         }
@@ -344,8 +382,19 @@ internal sealed class RenderHost : IDisposable
         int y = bar.Taskbar.Top + vpad;
         int height = Math.Max(8, bar.Taskbar.Height - 2 * vpad);
 
-        LayoutZone(_left, bar.Left, _settings.Left, _settings.LeftAlign, y, height, bar.Scale);
-        LayoutZone(_right, bar.Right, _settings.Right, _settings.RightAlign, y, height, bar.Scale);
+        // Guide de démarrage : les zones libres sont présentées à la place des modules.
+        bool guided = LayoutGuideZones(bar, y, height);
+        if (!guided && _settings.SingleGap == SingleGapMode.Center && !bar.Spanning.IsEmpty)
+        {
+            // Icônes alignées à gauche : tous les modules (gauche puis droite) groupés au milieu du grand espace.
+            LayoutZone(_left, bar.Spanning, _settings.Left.Concat(_settings.Right).ToList(), ZoneAlign.Center, y, height, bar.Scale);
+        }
+        else if (!guided)
+        {
+            LayoutZone(_left, bar.Left, _settings.Left, _settings.LeftAlign, y, height, bar.Scale);
+            LayoutZone(_right, bar.Right, _settings.Right, _settings.RightAlign, y, height, bar.Scale);
+        }
+        LayoutPointer(bar);
         UpdateVisibility();
     }
 
@@ -403,11 +452,20 @@ internal sealed class RenderHost : IDisposable
     private void RenderFrame()
     {
         byte opacity = (byte)Math.Round(Math.Clamp(_settings.Opacity, 0, 1) * 255);
+        float boot = BootTime;
         foreach (var zone in Zones())
         {
             if (!zone.HasContent) continue;
             var canvas = zone.Window.Canvas;
             if (canvas is null) continue;
+
+            if (zone.Guide is { } label)
+            {
+                DrawZoneGuide(canvas, zone.Window.Width, zone.Window.Height, label);
+                zone.Window.Present(255);
+                if (_visible && !Headless && !zone.Window.IsShown) zone.Window.Show();
+                continue;
+            }
 
             long t0 = Stopwatch.GetTimestamp();
             canvas.Clear(SKColors.Transparent);
@@ -419,14 +477,21 @@ internal sealed class RenderHost : IDisposable
                 canvas.ClipRect(item.Rect);
                 if (_settings.Background != BackgroundChoice.None)
                 {
-                    _panel.Color = new SKColor(0, 0, 0, _settings.Background == BackgroundChoice.Black ? (byte)0xF2 : (byte)0x8C);
+                    _panel.Color = _settings.Background switch
+                    {
+                        BackgroundChoice.Black => new SKColor(0, 0, 0, 0xF2),
+                        BackgroundChoice.Lcd => new SKColor(0x9A, 0xA5, 0x7E, 0xF2), // écran LCD rétroéclairé
+                        _ => new SKColor(0, 0, 0, 0x8C),
+                    };
                     float radius = 3 * _ctx.Scale;
                     canvas.DrawRoundRect(item.Rect, radius, radius, _panel);
                 }
                 try
                 {
                     _ctx.Theme = ThemeFor(item.Module);
-                    item.Module.Render(canvas, item.Rect, _ctx);
+                    // Pendant l'allumage, le module n'apparaît qu'à la dissolution des segments.
+                    if (boot < 0 || boot >= BootReveal) item.Module.Render(canvas, item.Rect, _ctx);
+                    if (boot >= 0) DrawBoot(canvas, item.Rect, boot);
                 }
                 catch (Exception ex)
                 {
@@ -449,12 +514,60 @@ internal sealed class RenderHost : IDisposable
             Profile("present", t0);
             if (_visible && !Headless && !zone.Window.IsShown) zone.Window.Show();
         }
+        DrawPointer();
+    }
+
+    /// <summary>
+    /// Une image de l'animation « auto-test » sur un module : segments allumés de gauche à droite (0 – 0,5 s),
+    /// balayage retour avec « OK » (0,5 – 0,8 s), puis dissolution aléatoire qui révèle le module.
+    /// </summary>
+    private void DrawBoot(SKCanvas canvas, SKRect rect, float t)
+    {
+        var theme = _ctx.Theme;
+        int p = _ctx.P;
+        float cell = 3 * p;
+        int cols = Math.Max(1, (int)(rect.Width / cell)), rows = Math.Max(1, (int)(rect.Height / cell));
+        float sweep = Math.Clamp(t / BootSweep, 0, 1);
+        float dissolve = t < BootReveal ? 0 : (t - BootReveal) / (BootDuration - BootReveal);
+        for (int c = 0; c < cols; c++)
+        {
+            float u = c / (float)cols;
+            if (u > sweep) break;
+            for (int r = 0; r < rows; r++)
+            {
+                uint h = (uint)(c * 73856093) ^ (uint)(r * 19349663) ^ 0x5bd1e995u;
+                h ^= h >> 13;
+                h *= 0x85ebca6bu;
+                float hv = (h & 0xFFFF) / 65535f;
+                if ((t < BootSweep && hv < 0.3f) || hv < dissolve) continue;
+                byte alpha = (byte)(0xD8 * (1 - dissolve * 0.5f));
+                _bootPaint.Color = theme.Spectral(u).WithAlpha(alpha);
+                canvas.DrawRect(rect.Left + c * cell, rect.Top + r * cell, cell - p, cell - p, _bootPaint);
+            }
+        }
+
+        if (t >= BootSweep && t < BootReveal)
+        {
+            float x = rect.Right - (t - BootSweep) / (BootReveal - BootSweep) * rect.Width;
+            _bootPaint.Color = theme.Ink;
+            canvas.DrawRect(MathF.Round(x), rect.Top, p, rect.Height, _bootPaint);
+        }
+        if (t < BootReveal)
+        {
+            string text = t < BootSweep ? "SELF-TEST" : "OK";
+            float y = MathF.Round(rect.MidY - _ctx.Labels.CapHeight / 2);
+            float x = MathF.Round(rect.Left + Math.Max(p, _ctx.EdgeInset));
+            _bootPaint.Color = new SKColor(0, 0, 0, 0xC0);
+            canvas.DrawRect(x - p, y - p, _ctx.Labels.Measure(text) + 2 * p, _ctx.Labels.CapHeight + 2 * p, _bootPaint);
+            _ctx.Labels.Draw(canvas, text, x, y, theme.Ink);
+        }
     }
 
     private void UpdateVisibility()
     {
         var bar = _bar;
-        string reason = _paused ? "pause" : bar is null ? "pas encore de barre" : !bar.Valid || !bar.Supported ? bar.Message : string.Empty;
+        string reason = _paused ? "pause" : _userHidden ? "masqués par le raccourci clavier"
+            : bar is null ? "pas encore de barre" : !bar.Valid || !bar.Supported ? bar.Message : string.Empty;
         if (reason.Length == 0)
         {
             if (!Win32.IsWindow(bar!.Hwnd) || !Win32.GetWindowRect(bar.Hwnd, out var now) || !now.SameAs(bar.Taskbar))
@@ -474,6 +587,11 @@ internal sealed class RenderHost : IDisposable
         }
 
         bool visible = reason.Length == 0;
+        if (visible && _bootPending)
+        {
+            _bootPending = false;
+            _bootAt = _now;
+        }
         if (reason != _hiddenReason)
         {
             _hiddenReason = reason;
@@ -485,7 +603,11 @@ internal sealed class RenderHost : IDisposable
             // Une fenêtre n'apparaît qu'après avoir reçu une image (dans RenderFrame).
             if (!visible || !zone.HasContent) zone.Window.Hide();
         }
-        if (!visible) _idlePresented = false;
+        if (!visible)
+        {
+            _idlePresented = false;
+            _pointer?.Hide();
+        }
     }
 
     private bool FullscreenOnMonitor(TaskbarState bar)
@@ -512,17 +634,16 @@ internal sealed class RenderHost : IDisposable
                 $"time={DateTime.Now:HH:mm:ss} visible={_visible} sampleRate={_analyzer.SampleRate} silent={_analyzer.SilentSeconds:0.0}s audio='{_audio.Status}'",
                 $"taskbar={_bar?.Taskbar} scale={_bar?.Scale} left={_bar?.Left} right={_bar?.Right} msg='{_bar?.Message}'",
             };
+            if (_guide is { } guide)
+                lines.Add($"guide={guide.Mark} icône={guide.Icon?.ToString() ?? "?"} cachée={_pointerHidden} pointe={_pointerTip}");
             foreach (var (zone, name) in new[] { (_left, "left"), (_right, "right") })
             {
                 lines.Add($"{name}: shown={zone.Window.IsShown} size={zone.Window.Width}x{zone.Window.Height} " +
                           string.Join(" ", zone.Items.Select(i => $"{i.Module.Info.Id}@{i.Rect.Left:0}+{i.Rect.Width:0}")));
                 foreach (var item in zone.Items)
                     if (item.Module.Diagnostics is { } diag) lines.Add("  " + diag);
-                using var image = zone.Window.Snapshot();
-                if (image is null || !zone.HasContent) continue;
-                using var data = image.Encode(SKEncodedImageFormat.Png, 100);
-                File.WriteAllBytes(Path.Combine(directory, $"{name}.png"), data.ToArray());
             }
+            SaveImages(directory, string.Empty);
             if (_profileFrames > 0)
             {
                 lines.Add($"profil ({_profileFrames} images, ms moyennes par image) — détection barre : {_tracker.LastDetectMs:0.0} ms");
@@ -532,6 +653,32 @@ internal sealed class RenderHost : IDisposable
                 _profileFrames = 0;
             }
             File.WriteAllLines(Path.Combine(directory, "state.txt"), lines);
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Dump", ex);
+        }
+    }
+
+    /// <summary>Dernière image de chaque zone en PNG (left.png, right.png, précédés de <paramref name="prefix"/>).</summary>
+    private void SaveImages(string directory, string prefix)
+    {
+        try
+        {
+            Directory.CreateDirectory(directory);
+            foreach (var (zone, name) in new[] { (_left, "left"), (_right, "right") })
+            {
+                using var image = zone.Window.Snapshot();
+                if (image is null || !zone.HasContent) continue;
+                using var data = image.Encode(SKEncodedImageFormat.Png, 100);
+                File.WriteAllBytes(Path.Combine(directory, $"{prefix}{name}.png"), data.ToArray());
+            }
+            if (_guide is { Mark: GuideMark.Tray } && _pointer?.Snapshot() is { } pointer)
+            {
+                using (pointer)
+                using (var data = pointer.Encode(SKEncodedImageFormat.Png, 100))
+                    File.WriteAllBytes(Path.Combine(directory, $"{prefix}pointer.png"), data.ToArray());
+            }
         }
         catch (Exception ex)
         {
@@ -563,6 +710,9 @@ internal sealed class RenderHost : IDisposable
         if (_right is not null) { DisposeItems(_right); _right.Window.Dispose(); }
         _ctx?.Dispose();
         _panel.Dispose();
+        _bootPaint.Dispose();
+        _pointer?.Dispose();
+        _guidePaint.Dispose();
     }
 
     public void Dispose()

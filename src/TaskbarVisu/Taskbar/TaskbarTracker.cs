@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Automation;
 using TaskbarVisu.Core;
 using TaskbarVisu.Native;
@@ -29,10 +29,16 @@ internal sealed class TaskbarState
     public Zone Left { get; init; }
     public Zone Right { get; init; }
 
+    /// <summary>
+    /// Icônes alignées à gauche : le grand espace libre unique (Left et Right en sont les deux moitiés).
+    /// Vide quand les icônes sont centrées.
+    /// </summary>
+    public Zone Spanning { get; init; }
+
     public bool SameLayout(TaskbarState o) =>
         Valid == o.Valid && Supported == o.Supported && Message == o.Message && Hwnd == o.Hwnd
         && Taskbar.SameAs(o.Taskbar) && Math.Abs(Scale - o.Scale) < 0.001f
-        && Near(Left, o.Left) && Near(Right, o.Right);
+        && Near(Left, o.Left) && Near(Right, o.Right) && Near(Spanning, o.Spanning);
 
     private static bool Near(Zone a, Zone b) => Math.Abs(a.X0 - b.X0) <= 2 && Math.Abs(a.X1 - b.X1) <= 2;
 
@@ -58,13 +64,16 @@ internal sealed class TaskbarTracker : IDisposable
     private volatile bool _running = true;
     private volatile TaskbarState _state = TaskbarState.Invalid("Recherche de la barre des tâches…");
     private volatile string? _monitorDevice;
+    private readonly string? _fixedDevice;
     private volatile int _intervalMs = 3000;
     private volatile int _spacing = 14;
     private volatile IntPtr[] _ownWindows = Array.Empty<IntPtr>();
     private CacheRequest? _cache;
 
-    public TaskbarTracker()
+    /// <param name="fixedDevice">Écran imposé (mode « tous les écrans ») ; sinon celui des réglages.</param>
+    public TaskbarTracker(string? fixedDevice = null)
     {
+        _fixedDevice = fixedDevice;
         _thread = new Thread(Run) { IsBackground = true, Name = "TaskbarVisu.Tracker", Priority = ThreadPriority.BelowNormal };
         _thread.SetApartmentState(ApartmentState.MTA);
     }
@@ -78,7 +87,7 @@ internal sealed class TaskbarTracker : IDisposable
 
     public void Configure(AppSettings s)
     {
-        _monitorDevice = s.MonitorDevice;
+        _monitorDevice = _fixedDevice ?? s.MonitorDevice;
         _intervalMs = s.DetectionIntervalMs;
         _spacing = s.Spacing;
         RequestRefresh();
@@ -164,12 +173,12 @@ internal sealed class TaskbarTracker : IDisposable
         foreach (var b in bars) exclude.Add(b.Hwnd);
         CollectOverlappingWindows(tb, exclude, occupied);
 
-        var (left, right) = ComputeZones(tb, occupied, scale, _spacing);
+        var (left, right, spanning) = ComputeZones(tb, occupied, scale, _spacing);
         return new TaskbarState
         {
             Valid = true, Hwnd = bar.Hwnd, HMonitor = bar.Monitor, Taskbar = tb, Monitor = mon, Scale = scale,
             AtTop = Math.Abs(tb.Top - mon.Top) < Math.Abs(tb.Bottom - mon.Bottom),
-            Left = left, Right = right,
+            Left = left, Right = right, Spanning = spanning,
         };
     }
 
@@ -235,9 +244,10 @@ internal sealed class TaskbarTracker : IDisposable
 
     /// <summary>
     /// Plus grand espace libre à gauche du centre et à droite du centre.
-    /// Si un seul grand espace traverse le centre (icônes alignées à gauche), il est partagé en deux.
+    /// Si un seul grand espace traverse le centre (icônes alignées à gauche), il est partagé en deux
+    /// et renvoyé aussi en entier (Spanning) pour le placement « tous les modules au centre ».
     /// </summary>
-    internal static (Zone Left, Zone Right) ComputeZones(RECT tb, List<(int A, int B)> occupied, float scale, int spacing)
+    internal static (Zone Left, Zone Right, Zone Spanning) ComputeZones(RECT tb, List<(int A, int B)> occupied, float scale, int spacing)
     {
         int pad = (int)Math.Round(10 * scale);
         int edge = (int)Math.Round(6 * scale);
@@ -273,9 +283,10 @@ internal sealed class TaskbarTracker : IDisposable
             int half = (int)Math.Round(spacing * scale / 2);
             left = new Zone(spanning.X0, mid - half);
             right = new Zone(mid + half, spanning.X1);
+            return (left, right, spanning);
         }
 
-        return (left, right);
+        return (left, right, Zone.None);
     }
 
     public void Dispose()

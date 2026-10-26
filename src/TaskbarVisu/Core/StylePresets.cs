@@ -1,13 +1,14 @@
 namespace TaskbarVisu.Core;
 
-/// <summary>Un style complet appliqué en un clic : palette, police, effets, fond et couleur des textes.</summary>
+/// <summary>Un style complet appliqué en un clic : palette, police, effets, fond, couleur des textes et thème.</summary>
 internal sealed record StylePreset(
     string Name,
     PaletteChoice Palette,
     bool PixelFont,
     bool Scanlines,
     BackgroundChoice Background,
-    ColorChoice Ink);
+    ColorChoice Ink,
+    ThemeChoice Theme = ThemeChoice.Auto);
 
 internal static class StylePresets
 {
@@ -21,6 +22,10 @@ internal static class StylePresets
         new("Chrome Y2K", PaletteChoice.Chrome, true, false, BackgroundChoice.Dark, ColorChoice.Default),
         new("Toxique", PaletteChoice.Toxic, true, true, BackgroundChoice.None, ColorChoice.Palette),
         new("RGB", PaletteChoice.RainbowAnimated, true, true, BackgroundChoice.None, ColorChoice.Default),
+        // Afficheurs d'appareils.
+        new("VFD", PaletteChoice.Vfd, true, true, BackgroundChoice.Black, ColorChoice.Palette),
+        new("LCD", PaletteChoice.Lcd, true, false, BackgroundChoice.Lcd, ColorChoice.Palette, ThemeChoice.Light),
+        new("Nixie", PaletteChoice.Nixie, false, false, BackgroundChoice.Black, ColorChoice.Palette),
     };
 
     /// <summary>Applique le style ; les couleurs propres à chaque module sont conservées.</summary>
@@ -32,5 +37,6 @@ internal static class StylePresets
         s.ShowScales = true;
         s.Background = preset.Background;
         s.ColorMode = preset.Ink;
+        s.Theme = preset.Theme;
     }
 }

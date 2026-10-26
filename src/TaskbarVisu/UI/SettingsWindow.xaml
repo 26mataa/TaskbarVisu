@@ -25,43 +25,8 @@
             </TabItem>
 
             <TabItem x:Name="TabLayout" Header="Disposition">
-                <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <StackPanel Margin="16,8,24,16">
-                        <TextBlock x:Name="LayoutIntro" TextWrapping="Wrap" Opacity="0.75" Margin="0,4,0,12"
-                                   Text="Les espaces libres à gauche et à droite des icônes de la barre des tâches sont détectés automatiquement (y compris les widgets comme FluentFlyout). Cochez les modules à afficher, glissez-les pour changer l'ordre ou le côté." />
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition />
-                                <ColumnDefinition Width="16" />
-                                <ColumnDefinition />
-                            </Grid.ColumnDefinitions>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                            </Grid.RowDefinitions>
-
-                            <TextBlock x:Name="LeftHeader" Text="Zone gauche" FontWeight="SemiBold" Margin="0,0,0,6" />
-                            <TextBlock x:Name="RightHeader" Grid.Column="2" Text="Zone droite" FontWeight="SemiBold" Margin="0,0,0,6" />
-
-                            <ListBox x:Name="LeftList" Grid.Row="1" MinHeight="200" AllowDrop="True" />
-                            <ListBox x:Name="RightList" Grid.Row="1" Grid.Column="2" MinHeight="200" AllowDrop="True" />
-
-                            <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,8,0,0">
-                                <Button x:Name="LeftUpButton" Content="▲" ToolTip="Monter" Width="44" Margin="0,0,6,0" Click="OnLeftUp" />
-                                <Button x:Name="LeftDownButton" Content="▼" ToolTip="Descendre" Width="44" Margin="0,0,6,0" Click="OnLeftDown" />
-                                <Button x:Name="MoveRightButton" Content="Vers la droite ▶" Click="OnMoveToRight" />
-                            </StackPanel>
-                            <StackPanel Grid.Row="2" Grid.Column="2" Orientation="Horizontal" Margin="0,8,0,0">
-                                <Button x:Name="RightUpButton" Content="▲" ToolTip="Monter" Width="44" Margin="0,0,6,0" Click="OnRightUp" />
-                                <Button x:Name="RightDownButton" Content="▼" ToolTip="Descendre" Width="44" Margin="0,0,6,0" Click="OnRightDown" />
-                                <Button x:Name="MoveLeftButton" Content="◀ Vers la gauche" Click="OnMoveToLeft" />
-                            </StackPanel>
-                        </Grid>
-
-                        <StackPanel x:Name="SelectionPanel" Margin="0,16,0,0" />
-                        <StackPanel x:Name="LayoutPanel" />
-                    </StackPanel>
+                <ScrollViewer x:Name="LayoutScroll" VerticalScrollBarVisibility="Auto">
+                    <StackPanel x:Name="LayoutRoot" Margin="16,8,24,16" />
                 </ScrollViewer>
             </TabItem>
 
@@ -72,7 +37,7 @@
             </TabItem>
         </TabControl>
 
-        <Grid Grid.Row="1" Margin="16,10,16,12">
+        <Grid x:Name="Footer" Grid.Row="1" Margin="16,10,16,12">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
@@ -84,5 +49,7 @@
                 <Button x:Name="CloseButton" Content="Fermer" MinWidth="90" Click="OnCloseClick" />
             </StackPanel>
         </Grid>
+        <!-- Guide de démarrage : remplace les onglets le temps de ses cinq étapes. -->
+        <Grid x:Name="WelcomeRoot" Grid.RowSpan="2" Visibility="Collapsed" />
     </Grid>
 </Window>

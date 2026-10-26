@@ -5,7 +5,7 @@ using TaskbarVisu.Rendering;
 namespace TaskbarVisu.Modules;
 
 /// <summary>
-/// Piano roll : les notes réellement entendues (harmoniques écartées, voir <see cref="KeyAnalyzer.Notes"/>)
+/// Piano roll : les notes réellement entendues (harmoniques écartées, voir <see cref="NoteTracker"/>)
 /// allument un clavier de plusieurs octaves, et leur historique défile au-dessus, chaque note dans sa colonne.
 /// Rien n'est « deviné » : une note faible s'allume faiblement. L'historique est une image circulaire :
 /// à chaque nouvelle ligne on n'écrit qu'une ligne de pixels.
@@ -107,8 +107,9 @@ internal sealed class PianoRollModule : VisualizerModule
 
     public override void Update(AudioAnalyzer audio, double dt)
     {
-        var harmony = audio.Harmony;
-        bool fresh = harmony.Update(audio, dt);
+        var tracker = audio.Notes;
+        tracker.SensitivityDb = OptF("sensitivity");
+        bool fresh = tracker.Update(audio, dt);
         EnsureLayout();
         if (_lut.Length == 0) return; // couleurs pas encore prêtes (premier rendu)
 
@@ -117,7 +118,7 @@ internal sealed class PianoRollModule : VisualizerModule
         _gain = Math.Max(_gain * (float)Math.Exp(-dt / 3.0), 3e-4f);
         if (fresh)
         {
-            var notes = harmony.Notes;
+            var notes = tracker.Notes;
             float max = 0;
             for (int m = 0; m < 128; m++) max = Math.Max(max, notes[m]);
             _gain = Math.Max(_gain, max);

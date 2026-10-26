@@ -16,19 +16,41 @@ public partial class App : Application
     private Mutex? _singleInstance;
     private EventWaitHandle? _showSignal;
     private RegisteredWaitHandle? _showSignalWait;
-    private RenderHost? _render;
     private TrayIcon? _tray;
     private SettingsWindow? _settingsWindow;
+    private HotkeyManager? _hotkey;
+    private HotkeyChoice _hotkeyApplied = (HotkeyChoice)(-1);
     private bool _trayHintShown;
     private bool _exiting;
+
+    // Un couple « détection de barre + rendu » par écran affiché (un seul, sauf « tous les écrans »).
+    private readonly List<(TaskbarTracker Tracker, RenderHost Host)> _screens = new();
+    private string _screensKey = string.Empty;
+    private System.Windows.Threading.DispatcherTimer? _screenTimer, _updateTimer;
+    private string? _dumpDirectory;
+    private bool _headless;
 
     internal static App Instance => (App)Current;
 
     internal SettingsStore Store { get; private set; } = null!;
     internal AppSettings Settings => Store.Current;
     internal AudioCapture Audio { get; private set; } = null!;
-    internal TaskbarTracker Tracker { get; private set; } = null!;
+
+    /// <summary>Barre des tâches du premier écran affiché (pied de la fenêtre de réglages).</summary>
+    internal TaskbarTracker Tracker => _screens[0].Tracker;
+
+    internal int ScreenCount => _screens.Count;
     internal bool IsPaused { get; private set; }
+
+    /// <summary>Visualiseurs masqués par le raccourci clavier.</summary>
+    internal bool VisualsHidden { get; private set; }
+
+    /// <summary>False si le raccourci choisi est déjà pris par une autre application.</summary>
+    internal bool HotkeyAvailable { get; private set; } = true;
+
+    internal UpdateInfo? AvailableUpdate { get; private set; }
+    internal string UpdateStatus { get; private set; } = string.Empty;
+    internal event Action? UpdateStateChanged;
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -132,19 +154,44 @@ public partial class App : Application
         else if (e.Args.Any(a => a.Equals("--test-signal", StringComparison.OrdinalIgnoreCase)))
             Audio.StartTestSignal();
         else
+        {
+            Audio.Configure(Settings.AudioSource, Settings.AudioDeviceId, Settings.AudioApp);
             Audio.Start();
+        }
 
-        Tracker = new TaskbarTracker();
-        Tracker.Configure(Settings);
-        Tracker.Start();
-
-        _render = new RenderHost(Audio, Tracker, Settings.Clone());
         var dumpIndex = Array.FindIndex(e.Args, a => a.Equals("--dump", StringComparison.OrdinalIgnoreCase));
-        if (dumpIndex >= 0 && dumpIndex + 1 < e.Args.Length) _render.DumpDirectory = e.Args[dumpIndex + 1];
-        _render.Headless = headless;
-        _render.Start();
+        if (dumpIndex >= 0 && dumpIndex + 1 < e.Args.Length) _dumpDirectory = e.Args[dumpIndex + 1];
+        _headless = headless;
+        SyncScreens(force: true);
+        // « Tous les écrans » : un écran branché ou débranché est pris en compte en quelques secondes.
+        _screenTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(5) };
+        _screenTimer.Tick += (_, _) => { if (Settings.AllMonitors) SyncScreens(); };
+        _screenTimer.Start();
 
         _tray = new TrayIcon(this);
+
+        if (!headless)
+        {
+            try
+            {
+                _hotkey = new HotkeyManager();
+                _hotkey.Pressed += ToggleVisuals;
+                ApplyHotkey();
+            }
+            catch (Exception ex)
+            {
+                Log.Error("Raccourci clavier indisponible", ex);
+            }
+
+            // Mises à jour : un premier contrôle peu après le démarrage, puis une fois par jour.
+            _updateTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(20) };
+            _updateTimer.Tick += async (_, _) =>
+            {
+                _updateTimer.Interval = TimeSpan.FromHours(24);
+                if (Settings.CheckUpdates) await CheckForUpdatesAsync(manual: false);
+            };
+            _updateTimer.Start();
+        }
 
         _showSignalWait = ThreadPool.RegisterWaitForSingleObject(_showSignal,
             (_, _) => Dispatcher.BeginInvoke(ShowSettings), null, Timeout.Infinite, executeOnlyOnce: false);
@@ -171,8 +218,16 @@ public partial class App : Application
             return;
         }
 
+        // Diagnostic : --guide zones | tray affiche un repère du guide de démarrage (avec --dump : images).
+        int guideIndex = Array.FindIndex(e.Args, a => a.Equals("--guide", StringComparison.OrdinalIgnoreCase));
+        if (guideIndex >= 0 && guideIndex + 1 < e.Args.Length)
+            ShowGuideMark(e.Args[guideIndex + 1] == "tray" ? GuideMark.Tray : GuideMark.Zones);
+
         bool startHidden = e.Args.Any(a => a.Equals("--tray", StringComparison.OrdinalIgnoreCase));
-        if (!startHidden) ShowSettings();
+        if (startHidden) return;
+        ShowSettings();
+        // Premier lancement : le guide de démarrage accompagne la découverte.
+        if (Store.IsFirstRun && !headless) _settingsWindow?.ShowWelcome();
     }
 
     /// <summary>
@@ -192,6 +247,7 @@ public partial class App : Application
                 ShowInTaskbar = false,
             };
             window.Show();
+            window.PrepareLayoutSnapshot();
             // Déplie le premier module (et ses options avancées) pour la capture de l'onglet Modules.
             if (window.ModulesPanel.Children.OfType<System.Windows.Controls.Expander>().FirstOrDefault() is { } first)
             {
@@ -203,16 +259,40 @@ public partial class App : Application
             {
                 window.Tabs.SelectedIndex = tab;
                 window.UpdateLayout();
-                if (_render?.DumpDirectory is { } dir) SaveSnapshot(window, Path.Combine(dir, $"settings-{tab}.png"));
+                if (_dumpDirectory is not { } dir) continue;
+                SaveSnapshot(window, Path.Combine(dir, $"settings-{tab}.png"));
+                if (window.Tabs.SelectedContent is System.Windows.Controls.ScrollViewer { Content: System.Windows.FrameworkElement body })
+                    SaveElement(window, body, Path.Combine(dir, $"settings-{tab}-full.png"));
             }
-            if (_render?.DumpDirectory is { } dumpDir)
+            if (_dumpDirectory is { } dumpDir)
             {
                 var picker = window.AppearancePanel.Children.OfType<System.Windows.Controls.Panel>()
                     .SelectMany(p => p.Children.OfType<ColorPickerButton>()).FirstOrDefault();
                 picker?.RenderPreview(Path.Combine(dumpDir, "colorpicker.png"));
             }
+            // Guide de démarrage : une capture par étape (welcome-1.png…).
+            window.ShowWelcome();
+            for (int step = 0; step < 5; step++)
+            {
+                window.GoToWelcomeStep(step);
+                window.UpdateLayout();
+                if (_dumpDirectory is { } welcomeDir) SaveSnapshot(window, Path.Combine(welcomeDir, $"welcome-{step + 1}.png"));
+            }
             Dispatcher.BeginInvoke(() =>
             {
+                // Textes des modules, même ceux des modules repliés.
+                foreach (var info in Modules.ModuleCatalog.All)
+                {
+                    Loc.T(info.Name);
+                    Loc.T(info.Description);
+                    foreach (var opt in info.Options)
+                    {
+                        Loc.T(opt.Label);
+                        if (opt.Help is { } help) Loc.T(help);
+                        foreach (var choice in opt.Choices ?? Array.Empty<string>()) Loc.T(choice);
+                    }
+                }
+                foreach (var name in HotkeyManager.Names) Loc.T(name);
                 Log.Info($"Auto-test interface OK ({window.ModulesPanel.Children.Count} éléments dans l'onglet Modules)");
                 lock (Loc.Missing)
                     if (Loc.Missing.Count > 0) Log.Info($"Traductions manquantes ({Loc.Code}) : {string.Join(" | ", Loc.Missing)}");
@@ -229,7 +309,12 @@ public partial class App : Application
 
     private static void SaveSnapshot(Window window, string path)
     {
-        if (window.Content is not System.Windows.FrameworkElement root) return;
+        if (window.Content is System.Windows.FrameworkElement root) SaveElement(window, root, path);
+    }
+
+    /// <summary>Image d'un élément entier, y compris la partie cachée hors d'un défilement.</summary>
+    private static void SaveElement(Window window, System.Windows.FrameworkElement root, string path)
+    {
         int w = (int)Math.Ceiling(root.ActualWidth), h = (int)Math.Ceiling(root.ActualHeight);
         if (w <= 0 || h <= 0) return;
         var visual = new System.Windows.Media.DrawingVisual();
@@ -245,6 +330,7 @@ public partial class App : Application
         bitmap.Render(visual);
         var encoder = new System.Windows.Media.Imaging.PngBitmapEncoder();
         encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(bitmap));
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         using var file = File.Create(path);
         encoder.Save(file);
     }
@@ -283,19 +369,149 @@ public partial class App : Application
     /// <summary>Appelé par l'interface après chaque modification de <see cref="Settings"/>.</summary>
     internal void OnSettingsChanged()
     {
+        SyncScreens();
         var snapshot = Settings.Clone();
-        _render?.ApplySettings(snapshot);
-        Tracker.Configure(snapshot);
+        foreach (var (tracker, host) in _screens)
+        {
+            host.ApplySettings(snapshot);
+            tracker.Configure(snapshot);
+        }
+        Audio.Configure(snapshot.AudioSource, snapshot.AudioDeviceId, snapshot.AudioApp);
+        ApplyHotkey();
         Store.SaveSoon();
+    }
+
+    /// <summary>
+    /// Crée ou recrée les couples détection + rendu : un pour l'écran choisi, ou un par barre des tâches
+    /// en mode « tous les écrans ». Ne fait rien si la liste des écrans n'a pas changé.
+    /// </summary>
+    private void SyncScreens(bool force = false)
+    {
+        var devices = Settings.AllMonitors
+            ? TaskbarLocator.FindAll().Select(b => (string?)b.DeviceName).ToList()
+            : new List<string?> { null };
+        if (devices.Count == 0) devices.Add(null);
+        string key = string.Join("|", devices.Select(d => d ?? "-"));
+        if (!force && key == _screensKey && _screens.Count > 0) return;
+        _screensKey = key;
+
+        foreach (var (tracker, host) in _screens)
+        {
+            host.Dispose();
+            tracker.Dispose();
+        }
+        _screens.Clear();
+
+        var snapshot = Settings.Clone();
+        for (int i = 0; i < devices.Count; i++)
+        {
+            var tracker = new TaskbarTracker(devices[i]);
+            tracker.Configure(snapshot);
+            tracker.Start();
+            var host = new RenderHost(Audio, tracker, snapshot)
+            {
+                DumpDirectory = i == 0 ? _dumpDirectory : null,
+                Headless = _headless,
+                Paused = IsPaused,
+                UserHidden = VisualsHidden,
+            };
+            host.Start();
+            _screens.Add((tracker, host));
+        }
+        if (devices.Count > 1) Log.Info($"Visualiseurs sur {devices.Count} écrans");
+        ApplyGuide();
+    }
+
+    private GuideRequest? _guide;
+
+    /// <summary>Guide de démarrage : repère sur la vraie barre (zones libres, ou flèche vers l'icône de notification).</summary>
+    internal void ShowGuideMark(GuideMark mark)
+    {
+        _guide = mark == GuideMark.None ? null : new GuideRequest(mark,
+            Loc.T("Zone gauche").ToUpperInvariant(), Loc.T("Zone droite").ToUpperInvariant(), Loc.T("Zone centrale").ToUpperInvariant(),
+            Loc.T("Vos réglages sont ici").ToUpperInvariant(), Loc.T("Icône cachée ? Cliquez sur ^").ToUpperInvariant(),
+            mark == GuideMark.Tray ? _tray?.IconRect() : null);
+        ApplyGuide();
+    }
+
+    private void ApplyGuide()
+    {
+        // La zone de notification n'est que sur la barre principale : la flèche n'apparaît que là.
+        int tray = Math.Max(0, _screens.FindIndex(s => s.Tracker.Current is { Valid: true } bar
+                                                      && Native.Win32.ClassOf(bar.Hwnd) == TaskbarLocator.PrimaryClass));
+        for (int i = 0; i < _screens.Count; i++)
+            _screens[i].Host.SetGuide(_guide?.Mark != GuideMark.Tray || i == tray ? _guide : null);
     }
 
     internal void TogglePause()
     {
         IsPaused = !IsPaused;
-        if (_render is not null) _render.Paused = IsPaused;
+        foreach (var (_, host) in _screens) host.Paused = IsPaused;
         if (IsPaused) Audio.Stop();
         else Audio.Start();
         _tray?.UpdatePauseState(IsPaused);
+    }
+
+    /// <summary>Masque / réaffiche les visualiseurs (raccourci clavier ou menu de l'icône).</summary>
+    internal void ToggleVisuals()
+    {
+        VisualsHidden = !VisualsHidden;
+        foreach (var (_, host) in _screens) host.UserHidden = VisualsHidden;
+        _tray?.UpdateHiddenState(VisualsHidden);
+    }
+
+    private void ApplyHotkey()
+    {
+        if (_hotkey is null || Settings.Hotkey == _hotkeyApplied) return;
+        _hotkeyApplied = Settings.Hotkey;
+        HotkeyAvailable = _hotkey.Set(Settings.Hotkey);
+        _tray?.UpdateHiddenState(VisualsHidden);
+    }
+
+    internal string HotkeyText => Settings.Hotkey == HotkeyChoice.None ? string.Empty : Loc.T(HotkeyManager.Names[(int)Settings.Hotkey]);
+
+    /// <summary>Interroge GitHub ; en arrière-plan, ne prévient qu'une fois par version (et pas si elle a été ignorée).</summary>
+    internal async Task CheckForUpdatesAsync(bool manual)
+    {
+        UpdateStatus = Loc.T("Recherche de mises à jour…");
+        UpdateStateChanged?.Invoke();
+        try
+        {
+            var update = await UpdateChecker.CheckAsync();
+            bool known = AvailableUpdate?.Version == update?.Version;
+            AvailableUpdate = update;
+            UpdateStatus = update is null
+                ? Loc.F("Version {0} : à jour", UpdateChecker.CurrentText)
+                : Loc.F("Version {0} disponible (installée : {1})", update.Version, UpdateChecker.CurrentText);
+            if (update is not null && !known && (manual || Settings.SkippedVersion != update.Tag))
+                _tray?.ShowHint(Loc.F("TaskbarVisu {0} est disponible", update.Version),
+                    Loc.T("Ouvrez le menu de l'icône ou les réglages (Général) pour l'installer."));
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Recherche de mises à jour", ex);
+            UpdateStatus = Loc.T("Impossible de joindre GitHub pour le moment");
+        }
+        _tray?.UpdateUpdateState(AvailableUpdate);
+        UpdateStateChanged?.Invoke();
+    }
+
+    /// <summary>Installe la mise à jour disponible (ou ouvre sa page en version portable).</summary>
+    internal async Task InstallUpdateAsync()
+    {
+        if (AvailableUpdate is not { } update) return;
+        try
+        {
+            UpdateStatus = Loc.T("Téléchargement de la mise à jour…");
+            UpdateStateChanged?.Invoke();
+            if (await UpdateChecker.InstallAsync(update)) ExitApp();
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Installation de la mise à jour", ex);
+            UpdateStatus = Loc.T("Échec du téléchargement : réessayez ou passez par la page des versions");
+            UpdateStateChanged?.Invoke();
+        }
     }
 
     internal void ExitApp()
@@ -310,9 +526,15 @@ public partial class App : Application
     {
         _exiting = true;
         _showSignalWait?.Unregister(null);
+        _screenTimer?.Stop();
+        _updateTimer?.Stop();
+        _hotkey?.Dispose();
         _tray?.Dispose();
-        _render?.Dispose();
-        Tracker?.Dispose();
+        foreach (var (tracker, host) in _screens)
+        {
+            host.Dispose();
+            tracker.Dispose();
+        }
         Audio?.Dispose();
         Store?.Dispose();
         _singleInstance?.Dispose();
