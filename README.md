@@ -60,7 +60,7 @@ module pack (Studio, Musician, Minimal or your own), then points at the tray ico
 ![Settings window](docs/settings.png)
 
 One-click presets (Lab, MiniMeters-like, CRT Phosphor, Synthwave, Vaporwave, Chrome Y2K, Toxic, RGB,
-and hardware looks: VFD, LCD, Nixie), 17 palettes including animated RGB, custom gradients of 2 to 8
+and hardware looks: VFD, LCD, Nixie), 17 palettes including animated RGB (6 animations, adjustable speed), custom gradients of 2 to 8
 colours (global or per module), real colour picker, pixel or smooth font, scanlines, per-module options
 tucked behind *More options*. UI in English, French, Spanish and German (follows Windows).
 

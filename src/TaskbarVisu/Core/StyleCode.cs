@@ -30,6 +30,9 @@ internal static class StyleCode
         public bool ShowScales { get; set; }
         public bool Scanlines { get; set; }
         public BackgroundChoice Background { get; set; }
+        // Absents des styles partagés avant la 0.9.1.
+        public RgbEffect? RgbEffect { get; set; }
+        public double? RgbSeconds { get; set; }
         public double Opacity { get; set; }
         public ThemeChoice Theme { get; set; }
         public ColorChoice ColorMode { get; set; }
@@ -45,6 +48,8 @@ internal static class StyleCode
         ShowScales = s.ShowScales,
         Scanlines = s.Scanlines,
         Background = s.Background,
+        RgbEffect = s.RgbEffect,
+        RgbSeconds = s.RgbSeconds,
         Opacity = s.Opacity,
         Theme = s.Theme,
         ColorMode = s.ColorMode,
@@ -90,7 +95,9 @@ internal static class StyleCode
             s.PixelFont = style.PixelFont;
             s.ShowScales = style.ShowScales;
             s.Scanlines = style.Scanlines;
-            s.Background = style.Background;
+            s.Background = AppSettings.CleanBackground(style.Background);
+            if (style.RgbEffect is { } effect) s.RgbEffect = effect;
+            if (style.RgbSeconds is { } seconds) s.RgbSeconds = Math.Clamp(seconds, 2, 60);
             s.Opacity = Math.Clamp(style.Opacity <= 0 ? 1 : style.Opacity, 0.2, 1);
             s.Theme = style.Theme;
             s.ColorMode = style.ColorMode;

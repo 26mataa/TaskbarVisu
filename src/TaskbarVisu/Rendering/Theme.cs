@@ -38,6 +38,9 @@ internal sealed class Theme
     /// <summary>Décalage de l'animation, de 0 à 1 (mis à jour à chaque image par le rendu).</summary>
     public float Phase { get; set; }
 
+    /// <summary>Façon dont la palette animée bouge.</summary>
+    public RgbEffect Effect { get; private set; }
+
     private (float T, SKColor C)[] _palette = Array.Empty<(float, SKColor)>();
     private readonly SKColor[] _spectral = new SKColor[256];
     private AppSettings _settings = null!;
@@ -84,6 +87,7 @@ internal sealed class Theme
 
         var choice = palette ?? s.Palette;
         theme.Animated = solid is null && choice == PaletteChoice.RainbowAnimated;
+        theme.Effect = s.RgbEffect;
         theme._palette = solid is { } c ? MonoStops(c) : theme.Stops(choice);
         // Le bas des palettes intégrées (très sombre) ne sert qu'aux fonds du spectrogramme ;
         // un dégradé personnalisé est visible en entier, comme dans son éditeur.
@@ -119,12 +123,25 @@ internal sealed class Theme
     public SKColor Spectral(float t)
     {
         t = Math.Clamp(t, 0, 1);
-        if (Animated)
-        {
-            float u = (t * 0.85f + Phase) % 1f;
-            return _spectral[(int)(u * 255.999f)];
-        }
+        if (Animated) return AnimatedColor(t);
         return _spectral[(int)(t * 255)];
+    }
+
+    private SKColor AnimatedColor(float t)
+    {
+        float u = Effect switch
+        {
+            RgbEffect.FlowReverse => t * 0.85f - Phase,
+            RgbEffect.Cycle => t * 0.12f + Phase,
+            RgbEffect.Bounce => t * 0.85f + 0.3f * MathF.Sin(Phase * MathF.Tau),
+            RgbEffect.Pulse or RgbEffect.Still => t * 0.85f,
+            _ => t * 0.85f + Phase,
+        };
+        var c = _spectral[(int)((u - MathF.Floor(u)) * 255.999f)];
+        if (Effect != RgbEffect.Pulse) return c;
+        // Respiration : de 35 % à 100 % de luminosité.
+        float k = 0.35f + 0.65f * (0.5f + 0.5f * MathF.Cos(Phase * MathF.Tau));
+        return Scale(c, k);
     }
 
     /// <summary>

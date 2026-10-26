@@ -132,9 +132,11 @@ la trace liste aussi les pics de chaque image (fréquence:amplitude:part non exp
   Vaporwave, Toxique, Chrome Y2K, VFD, LCD, Nixie, Monochrome, accentuation Windows ou dégradé
   personnalisé (grave → aigu) de 2 à 8 couleurs : clic sur la barre pour ajouter une couleur, repères à
   glisser, clic droit pour retirer, inversion, point de départ pris d'une palette existante.
+- Animation RGB réglable : défilement vers les aigus ou les graves, une couleur à la fois, va-et-vient,
+  pulsation ou fixe, avec la durée du cycle (2 à 60 s).
 - Textes et repères : lavande, teintés par la palette, accentuation Windows ou couleur choisie au sélecteur.
 - Chaque module peut avoir ses propres couleurs : une autre palette, son propre dégradé ou une couleur unie.
-- Fond des modules : aucun (fondu dans la barre), sombre translucide, noir ou écran LCD (olive clair).
+- Pas de fond : les modules se fondent dans la barre (fond écran LCD olive clair en option, pour le style LCD).
 - Partager un style : code court `TBV1:…` (JSON compressé, à coller sur Discord) ou fichier `.tbvstyle`.
   Le style comprend palette, effets, fond et couleurs de chaque module, pas la disposition.
 
@@ -199,7 +201,8 @@ Clic sur l'icône de la zone de notification → fenêtre de réglages (style Wi
 - **Général** : démarrage (avec Windows, fermer vers la zone de notification, animation d'allumage),
   source audio, langue, écran (principal, tous, ou un écran précis), plein écran, raccourci clavier,
   mises à jour, i/s, résolution FFT, économie d'énergie, dossier des réglages.
-- **Apparence** : préréglages, style, palette, couleurs, fond, opacité, partage de style.
+- **Apparence** : préréglages en cartes (le style actif est entouré), couleurs (palette, animation RGB,
+  textes, clair / sombre), effets, partage de style replié.
 - **Disposition** : la barre des tâches en miniature, modules à l'échelle et place restante par zone.
   Un clic sur un module ouvre ses réglages (largeur de 60 à 400 px, décaler, changer de côté, retirer,
   options) ; on peut aussi le glisser. En dessous : ajout des modules masqués (+ Gauche / + Droite),
@@ -212,7 +215,8 @@ Clic sur l'icône de la zone de notification → fenêtre de réglages (style Wi
 
   ![Guide de démarrage](docs/welcome.png)
 
-- **Modules** : options propres à chaque module, réinitialisables.
+- **Modules** : options propres à chaque module, réinitialisables ; modules affichés d'abord, puis les masqués
+  (avec « Afficher sur la barre »).
 
 Réglages et journal : `%APPDATA%\TaskbarVisu\` (`settings.json`, `log.txt`). Mode portable : avec un fichier
 `portable.txt` à côté de `TaskbarVisu.exe` (fourni dans le zip portable), ils vont dans le dossier `data`

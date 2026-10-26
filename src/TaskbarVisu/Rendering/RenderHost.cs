@@ -394,10 +394,10 @@ internal sealed partial class RenderHost : IDisposable
     private Theme ThemeFor(VisualizerModule module) =>
         _moduleThemes.TryGetValue(module.Info.Id, out var theme) ? theme : _globalTheme;
 
-    /// <summary>Fait tourner les palettes animées (un tour toutes les ~14 s).</summary>
+    /// <summary>Fait tourner les palettes animées (un cycle toutes les RgbSeconds secondes).</summary>
     private void AnimateThemes(double now)
     {
-        float phase = (float)(now / 14.0 % 1.0);
+        float phase = _settings.RgbEffect == RgbEffect.Still ? 0 : (float)(now / _settings.RgbSeconds % 1.0);
         _globalTheme.Phase = phase;
         foreach (var theme in _moduleThemes.Values) theme.Phase = phase;
     }
@@ -519,14 +519,9 @@ internal sealed partial class RenderHost : IDisposable
                 t0 = Mark();
                 canvas.Save();
                 canvas.ClipRect(item.Rect);
-                if (_settings.Background != BackgroundChoice.None)
+                if (_settings.Background == BackgroundChoice.Lcd)
                 {
-                    _panel.Color = _settings.Background switch
-                    {
-                        BackgroundChoice.Black => new SKColor(0, 0, 0, 0xF2),
-                        BackgroundChoice.Lcd => new SKColor(0x9A, 0xA5, 0x7E, 0xF2), // écran LCD rétroéclairé
-                        _ => new SKColor(0, 0, 0, 0x8C),
-                    };
+                    _panel.Color = new SKColor(0x9A, 0xA5, 0x7E, 0xF2); // écran LCD rétroéclairé
                     float radius = 3 * _ctx.Scale;
                     canvas.DrawRoundRect(item.Rect, radius, radius, _panel);
                 }

@@ -19,8 +19,28 @@ internal enum PaletteChoice
 
 internal enum ZoneAlign { Start, Center, End }
 
-/// <summary>Fond des modules ; « Lcd » = écran à cristaux liquides rétroéclairé (fond clair olive).</summary>
+/// <summary>
+/// Fond des modules : aucun (fondu dans la barre) ou « Lcd », écran à cristaux liquides rétroéclairé (fond clair olive).
+/// Dark et Black ne sont plus proposés : gardés pour relire les anciens réglages, ils redeviennent None.
+/// </summary>
 internal enum BackgroundChoice { None, Dark, Black, Lcd }
+
+/// <summary>Animation de la palette RGB (arc-en-ciel animé).</summary>
+internal enum RgbEffect
+{
+    /// <summary>Les couleurs défilent des graves vers les aigus.</summary>
+    Flow,
+    /// <summary>Les couleurs défilent des aigus vers les graves.</summary>
+    FlowReverse,
+    /// <summary>Une seule teinte à la fois, qui change pour tout le module.</summary>
+    Cycle,
+    /// <summary>L'arc-en-ciel oscille d'un côté puis de l'autre.</summary>
+    Bounce,
+    /// <summary>Arc-en-ciel fixe dont la luminosité respire.</summary>
+    Pulse,
+    /// <summary>Arc-en-ciel fixe, sans animation.</summary>
+    Still,
+}
 
 /// <summary>Ce que TaskbarVisu écoute.</summary>
 internal enum AudioSourceKind
@@ -109,6 +129,9 @@ internal sealed class AppSettings
     public string PaletteLow { get; set; } = "#3A0CA3";
     public string PaletteHigh { get; set; } = "#FFD60A";
     public BackgroundChoice Background { get; set; } = BackgroundChoice.None;
+    public RgbEffect RgbEffect { get; set; } = RgbEffect.Flow;
+    /// <summary>Durée d'un cycle de l'animation RGB, en secondes.</summary>
+    public double RgbSeconds { get; set; } = 14;
     public bool PixelFont { get; set; } = true;
     public bool ShowScales { get; set; } = true;
     public bool Scanlines { get; set; } = true;
@@ -225,6 +248,8 @@ internal sealed class AppSettings
 
         Fps = Math.Clamp(Fps, 15, 240);
         Opacity = Math.Clamp(Opacity, 0.2, 1.0);
+        Background = CleanBackground(Background);
+        RgbSeconds = Math.Clamp(RgbSeconds, 2, 60);
         EdgeFade = Math.Clamp(EdgeFade, 0, 60);
         Spacing = Math.Clamp(Spacing, 0, 60);
         VerticalPadding = Math.Clamp(VerticalPadding, 0, 12);
@@ -297,6 +322,10 @@ internal sealed class AppSettings
         if (PaletteLow != "#3A0CA3" || PaletteHigh != "#FFD60A")
             Gradient = Gradients.FromLowHigh(PaletteLow, PaletteHigh);
     }
+
+    /// <summary>Seuls « aucun » et l'écran LCD restent proposés.</summary>
+    public static BackgroundChoice CleanBackground(BackgroundChoice b) =>
+        b == BackgroundChoice.Lcd ? BackgroundChoice.Lcd : BackgroundChoice.None;
 
     private static List<ModuleConfig> Clean(List<ModuleConfig>? list, HashSet<string> seen)
     {

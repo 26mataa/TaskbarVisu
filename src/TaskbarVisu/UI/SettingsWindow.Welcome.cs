@@ -269,11 +269,11 @@ public partial class SettingsWindow
 
     private void BuildWelcomeStyles(Panel p, Brush accent)
     {
-        var cards = new WrapPanel();
+        // Grille fixe et sélection mise à jour sur place : les cartes ne bougent jamais quand on en choisit une.
+        var cards = new UniformGrid { Columns = 4 };
+        var current = StylePresets.Current(S);
         foreach (var preset in StylePresets.All)
         {
-            bool selected = S.Palette == preset.Palette && S.PixelFont == preset.PixelFont && S.Scanlines == preset.Scanlines
-                            && S.Background == preset.Background && S.ColorMode == preset.Ink && S.Theme == preset.Theme;
             var content = new StackPanel
             {
                 Children =
@@ -286,17 +286,24 @@ public partial class SettingsWindow
                     },
                 },
             };
-            var card = CardButton(content, selected, accent);
+            var card = CardButton(content, ReferenceEquals(preset, current), accent);
             card.Margin = new Thickness(0, 0, 10, 10);
             card.Click += (_, _) =>
             {
                 StylePresets.Apply(S, preset);
                 Changed();
-                BuildWelcome();
+                SelectCard(cards, card, accent);
             };
             cards.Children.Add(card);
         }
         p.Children.Add(cards);
+    }
+
+    /// <summary>Met le liseré d'accentuation sur <paramref name="selected"/> et l'enlève des autres cartes, sans rien déplacer.</summary>
+    private static void SelectCard(Panel cards, Button? selected, Brush accent)
+    {
+        foreach (var card in cards.Children.OfType<Button>())
+            card.BorderBrush = ReferenceEquals(card, selected) ? accent : CardBorder;
     }
 
     /// <summary>Aperçu d'un préréglage : un petit spectre à ses couleurs, sur son fond et avec ses effets.</summary>
@@ -313,14 +320,8 @@ public partial class SettingsWindow
             Clip = new RectangleGeometry(new Rect(0, 0, width, height), 4, 4),
             SnapsToDevicePixels = true,
         };
-        Color? panel = preset.Background switch
-        {
-            BackgroundChoice.Dark => Color.FromArgb(0x8C, 0, 0, 0),
-            BackgroundChoice.Black => Color.FromArgb(0xF2, 0, 0, 0),
-            BackgroundChoice.Lcd => Color.FromArgb(0xF2, 0x9A, 0xA5, 0x7E),
-            _ => null,
-        };
-        if (panel is { } fill) Place(canvas, new Rectangle { Width = width, Height = height, Fill = new SolidColorBrush(fill) }, 0, 0);
+        if (preset.Background == BackgroundChoice.Lcd)
+            Place(canvas, new Rectangle { Width = width, Height = height, Fill = new SolidColorBrush(Color.FromArgb(0xF2, 0x9A, 0xA5, 0x7E)) }, 0, 0);
 
         // Barres du grave à l'aigu ; la police pixel donne des segments d'afficheur.
         int count = PreviewShape.Length;
@@ -378,7 +379,7 @@ public partial class SettingsWindow
                 _welcomeOwnLayout = false;
                 ModulePacks.Apply(S, pack);
                 Changed();
-                BuildWelcome();
+                SelectCard(grid, card, accent);
             };
             grid.Children.Add(card);
         }
@@ -387,7 +388,7 @@ public partial class SettingsWindow
         own.Click += (_, _) =>
         {
             _welcomeOwnLayout = true;
-            BuildWelcome();
+            SelectCard(grid, own, accent);
         };
         grid.Children.Add(own);
         p.Children.Add(grid);
@@ -529,16 +530,27 @@ public partial class SettingsWindow
         Child = child,
     };
 
-    /// <summary>Carte cliquable (clavier compris) ; la carte choisie a un liseré d'accentuation.</summary>
+    private static readonly Brush CardBorder = Frozen(new SolidColorBrush(Color.FromArgb(0x30, 0x80, 0x80, 0x80)));
+
+    private static Brush Frozen(Brush brush)
+    {
+        brush.Freeze();
+        return brush;
+    }
+
+    /// <summary>
+    /// Carte cliquable (clavier compris) ; la carte choisie a un liseré d'accentuation.
+    /// Bordure toujours de 2 px : choisir une carte ne change pas sa taille, donc rien ne se décale.
+    /// </summary>
     private static Button CardButton(UIElement content, bool selected, Brush accent) => new()
     {
         Content = content,
-        Padding = new Thickness(12, 10, 12, 10),
+        Padding = new Thickness(11, 9, 11, 9),
         HorizontalAlignment = HorizontalAlignment.Stretch,
         VerticalAlignment = VerticalAlignment.Stretch,
         HorizontalContentAlignment = HorizontalAlignment.Stretch,
         VerticalContentAlignment = VerticalAlignment.Top,
-        BorderThickness = new Thickness(selected ? 2 : 1),
-        BorderBrush = selected ? accent : new SolidColorBrush(Color.FromArgb(0x30, 0x80, 0x80, 0x80)),
+        BorderThickness = new Thickness(2),
+        BorderBrush = selected ? accent : CardBorder,
     };
 }
