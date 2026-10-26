@@ -355,13 +355,12 @@ internal static class Loc
 
             // --- Nouveaux modules
             new[] { "Oscilloscope XY", "XY oscilloscope", "Osciloscopio XY", "XY-Oszilloskop" },
-            new[] { "Le son tracé en points lumineux qui s'éteignent lentement, comme un écran cathodique, avec des dessins qui changent au rythme. Mono = trait vertical, stéréo = nuage.", "The sound drawn as glowing dots that fade slowly, like a CRT screen, with drawings that change with the beat. Mono = vertical line, stereo = cloud.", "El sonido trazado con puntos luminosos que se apagan lentamente, como una pantalla CRT, con dibujos que cambian al ritmo. Mono = trazo vertical, estéreo = nube.", "Der Klang als leuchtende Punkte, die langsam verblassen, wie auf einem Röhrenbildschirm, mit Zeichnungen, die im Takt wechseln. Mono = senkrechte Linie, Stereo = Wolke." },
+            new[] { "Le son tracé en points lumineux qui s'éteignent lentement, comme un écran cathodique, et qui se change par moments en dessin. Mono = trait vertical, stéréo = nuage.", "The sound drawn as glowing dots that fade slowly, like a CRT screen, now and then turning into a drawing. Mono = vertical line, stereo = cloud.", "El sonido trazado con puntos luminosos que se apagan lentamente, como una pantalla CRT, y que a ratos se convierte en un dibujo. Mono = trazo vertical, estéreo = nube.", "Der Klang als leuchtende Punkte, die langsam verblassen, wie auf einem Röhrenbildschirm, und die sich ab und zu in eine Zeichnung verwandeln. Mono = senkrechte Linie, Stereo = Wolke." },
             // --- 0.9.2 : dessins de l'oscilloscope XY
             new[] { "Dessins", "Drawings", "Dibujos", "Zeichnungen" },
-            new[] { "Sur les temps forts", "On the beats", "En los golpes", "Auf den Beats" },
-            new[] { "En continu", "Continuously", "Siempre", "Durchgehend" },
-            new[] { "Le faisceau trace aussi des dessins (étoiles, cœurs, personnages…) qui changent au rythme de la musique.", "The beam also draws pictures (stars, hearts, characters…) that change with the music's beat.", "El haz también traza dibujos (estrellas, corazones, personajes…) que cambian al ritmo de la música.", "Der Strahl zeichnet auch Bilder (Sterne, Herzen, Figuren…), die im Takt der Musik wechseln." },
-            new[] { "Dessins en double", "Drawings in pairs", "Dibujos dobles", "Zeichnungen doppelt" },
+            new[] { "De temps en temps", "Now and then", "De vez en cuando", "Ab und zu" },
+            new[] { "Souvent", "Often", "A menudo", "Oft" },
+            new[] { "Par moments, le tracé du son se change en dessin (étoile, cœur, personnage…), à un endroit au hasard, puis redevient le son.", "Now and then the sound trace turns into a drawing (star, heart, character…) somewhere at random, then back into the sound.", "A ratos, el trazo del sonido se convierte en un dibujo (estrella, corazón, personaje…) en un lugar al azar y luego vuelve a ser el sonido.", "Ab und zu verwandelt sich die Klangspur an einer zufälligen Stelle in eine Zeichnung (Stern, Herz, Figur…) und dann wieder in den Klang." },
             new[] { "Le son fait trembler les dessins", "The sound makes the drawings shake", "El sonido hace temblar los dibujos", "Der Klang lässt die Zeichnungen zittern" },
             new[] { "Rotation lente des dessins", "Slowly rotate the drawings", "Rotación lenta de los dibujos", "Zeichnungen langsam drehen" },
             new[] { "Tracé", "Plot", "Trazado", "Darstellung" },

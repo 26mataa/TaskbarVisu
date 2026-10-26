@@ -214,15 +214,14 @@ internal static class ModuleCatalog
             () => new PianoRollModule()),
 
         new("xyscope", "Oscilloscope XY",
-            "Le son tracé en points lumineux qui s'éteignent lentement, comme un écran cathodique, avec des dessins qui changent au rythme. Mono = trait vertical, stéréo = nuage.",
+            "Le son tracé en points lumineux qui s'éteignent lentement, comme un écran cathodique, et qui se change par moments en dessin. Mono = trait vertical, stéréo = nuage.",
             DefaultModuleWidth, 50,
             new[]
             {
                 Choice("mode", "Tracé", 0, new[] { "Goniomètre (milieu / côtés)", "Lissajous (gauche / droite)" }),
                 Slider("persistence", "Rémanence", 0.35, 0.05, 1.5, 0.05, "s"),
-                Choice("drawings", "Dessins", 1, new[] { "Aucun", "Sur les temps forts", "En continu" },
-                    help: "Le faisceau trace aussi des dessins (étoiles, cœurs, personnages…) qui changent au rythme de la musique."),
-                Toggle("double", "Dessins en double", true),
+                Choice("drawings", "Dessins", 1, new[] { "Aucun", "De temps en temps", "Souvent" },
+                    help: "Par moments, le tracé du son se change en dessin (étoile, cœur, personnage…), à un endroit au hasard, puis redevient le son."),
                 Slider("wobble", "Le son fait trembler les dessins", 35, 0, 100, 5, "%"),
                 Toggle("spin", "Rotation lente des dessins", false, advanced: true),
                 Toggle("stretch", "Étirer sur toute la largeur", true, advanced: true),

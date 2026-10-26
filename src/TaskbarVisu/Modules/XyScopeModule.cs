@@ -7,12 +7,11 @@ namespace TaskbarVisu.Modules;
 /// <summary>
 /// Oscilloscope XY façon écran cathodique : chaque échantillon allume un point du « phosphore », qui s'éteint
 /// lentement (rémanence). Goniomètre (son mono = trait vertical, stéréo large = nuage) ou Lissajous gauche / droite.
+/// Par moments, le tracé se change en dessin puis redevient le son (<see cref="ScopeDrawer"/>).
 /// </summary>
 internal sealed class XyScopeModule : VisualizerModule
 {
     private float[] _phosphor = Array.Empty<float>();
-    /// <summary>Couche des dessins, à rémanence courte.</summary>
-    private float[] _ink = Array.Empty<float>();
     private SKBitmap? _bitmap;
     private uint[] _lut = Array.Empty<uint>();
     private (int Version, int Phase) _lutKey = (-1, -1);
@@ -29,7 +28,6 @@ internal sealed class XyScopeModule : VisualizerModule
     protected override void OnResize()
     {
         _phosphor = new float[Width * Height];
-        _ink = new float[Width * Height];
         _bitmap?.Dispose();
         _bitmap = new SKBitmap(new SKImageInfo(Width, Height, SKColorType.Bgra8888, SKAlphaType.Premul));
         _bitmap.Erase(SKColors.Transparent);
@@ -47,17 +45,14 @@ internal sealed class XyScopeModule : VisualizerModule
     {
         if (_bitmap is null || _lut.Length == 0) return;
 
-        // Rémanence : chaque point s'éteint exponentiellement. Les dessins ont leur propre couche, qui s'éteint vite :
-        // un dessin chasse le précédent en quelques images au lieu de se mélanger avec lui.
-        double persistence = Math.Max(0.02, Opt("persistence"));
-        float decay = (float)Math.Exp(-dt / persistence), inkDecay = (float)Math.Exp(-dt / Math.Min(0.08, persistence));
+        // Rémanence : chaque point s'éteint exponentiellement.
+        float decay = (float)Math.Exp(-dt / Math.Max(0.02, Opt("persistence")));
         bool lit = false;
         for (int i = 0; i < _phosphor.Length; i++)
         {
-            float v = _phosphor[i] * decay, k = _ink[i] * inkDecay;
+            float v = _phosphor[i] * decay;
             _phosphor[i] = v < 0.004f ? 0 : v;
-            _ink[i] = k < 0.004f ? 0 : k;
-            lit |= v > 0 || k > 0;
+            lit |= v > 0;
         }
 
         // Gain automatique : la crête récente occupe ~90 % du cadre.
@@ -67,36 +62,38 @@ internal sealed class XyScopeModule : VisualizerModule
         _gain = Math.Clamp(_gain, 0.5f, 400f);
 
         var (x0, w) = PlotArea();
+        int drawings = OptI("drawings");
+        if (drawings > 0)
+        {
+            _drawer.Update(audio, dt, drawings == 2, OptF("wobble") / 100f, Flag("spin"), x0, w, Height);
+            lit |= _drawer.Active;
+        }
+        // Dessin en cours : chaque point glisse de sa place dans le nuage vers sa place sur le dessin, que le son fait trembler.
+        float morph = drawings > 0 ? _drawer.Morph : 0, jitter = _drawer.Jitter;
+        var toX = _drawer.X;
+        var toY = _drawer.Y;
+
         bool gonio = OptI("mode") == 0;
         float hx = (w - 1) / 2f, hy = (Height - 1) / 2f;
         int n = audio.Count;
         float hit = Math.Clamp(1800f / Math.Max(1, n), 0.08f, 1f) * 0.35f;
-        // Avec les dessins, le son reste en fond, plus discret : les dessins passent devant.
-        int drawings = OptI("drawings");
-        if (drawings > 0) hit *= 0.3f;
         for (int i = 0; i < n; i++)
         {
             float l = audio.Left[i] * _gain, r = audio.Right[i] * _gain;
             float sx, sy;
             if (gonio) (sx, sy) = ((r - l) * 0.7071f, (l + r) * 0.7071f);
             else (sx, sy) = (l, r);
-            int px = x0 + (int)MathF.Round(hx + sx * hx);
-            int py = (int)MathF.Round(hy - sy * hy);
+            float fx = x0 + hx + sx * hx, fy = hy - sy * hy;
+            if (morph > 0)
+            {
+                fx += (toX[i] + sx * jitter - fx) * morph;
+                fy += (toY[i] - sy * jitter - fy) * morph;
+            }
+            int px = (int)MathF.Round(fx), py = (int)MathF.Round(fy);
             if ((uint)px >= (uint)Width || (uint)py >= (uint)Height) continue;
             ref float cell = ref _phosphor[py * Width + px];
             cell = Math.Min(1.5f, cell + hit);
             lit = true;
-        }
-
-        // Dessins tracés par le même faisceau, mêmes couleurs que le son.
-        if (drawings > 0)
-        {
-            // Énergie par pixel de trait, constante quelle que soit la cadence ; au-dessus de 1 car le trait lissé se répartit
-            // sur deux pixels : il atteint ainsi le haut de la palette.
-            float deposit = 1.4f * (1 - inkDecay);
-            _drawer.Update(audio, dt, drawings == 2, Flag("double"), OptF("wobble") / 100f, Flag("spin"), _gain,
-                _ink, Width, Height, x0, w, deposit);
-            lit |= !_drawer.Idle;
         }
         _lit = lit;
 
@@ -104,10 +101,7 @@ internal sealed class XyScopeModule : VisualizerModule
         {
             uint* pixels = (uint*)_bitmap.GetPixels();
             for (int i = 0; i < _phosphor.Length; i++)
-            {
-                float v = _phosphor[i] + _ink[i];
-                pixels[i] = v <= 0 ? 0 : _lut[(int)Math.Min(255, v * 255)];
-            }
+                pixels[i] = _phosphor[i] <= 0 ? 0 : _lut[(int)Math.Min(255, _phosphor[i] * 255)];
         }
         _bitmap.NotifyPixelsChanged();
     }

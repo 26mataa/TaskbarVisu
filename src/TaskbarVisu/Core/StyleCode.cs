@@ -104,7 +104,7 @@ internal static class StyleCode
             s.Scanlines = style.Scanlines;
             s.Background = AppSettings.CleanBackground(style.Background);
             s.Animation = style.Animation ?? (style.Palette == PaletteChoice.RainbowAnimated ? ColorAnimation.Flow : ColorAnimation.Still);
-            if (style.AnimationSeconds is { } seconds) s.AnimationSeconds = Math.Clamp(seconds, 2, 60);
+            if (style.AnimationSeconds is { } seconds) s.AnimationSeconds = Math.Clamp(seconds, AppSettings.MinAnimationSeconds, 60);
             s.Opacity = Math.Clamp(style.Opacity <= 0 ? 1 : style.Opacity, 0.2, 1);
             s.Theme = style.Theme;
             s.ColorMode = style.ColorMode;

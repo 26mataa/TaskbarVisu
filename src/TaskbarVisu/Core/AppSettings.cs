@@ -96,6 +96,8 @@ internal sealed class AppSettings
     public const int CurrentVersion = 6;
     public const int MaxModuleWidth = 400;
     public const int MaxStyles = 24;
+    /// <summary>Cycle le plus court de l'animation des couleurs (clignotement rapide), en secondes.</summary>
+    public const double MinAnimationSeconds = 0.2;
 
     public int Version { get; set; } = CurrentVersion;
 
@@ -264,7 +266,7 @@ internal sealed class AppSettings
         Fps = Math.Clamp(Fps, 15, 240);
         Opacity = Math.Clamp(Opacity, 0.2, 1.0);
         Background = CleanBackground(Background);
-        AnimationSeconds = Math.Clamp(AnimationSeconds, 2, 60);
+        AnimationSeconds = Math.Clamp(AnimationSeconds, MinAnimationSeconds, 60);
         // Une seule palette RGB : l'ancien arc-en-ciel fixe devient la palette RGB sans animation.
         if (Palette == PaletteChoice.Rainbow) Palette = PaletteChoice.RainbowAnimated;
         foreach (var m in AllModules)

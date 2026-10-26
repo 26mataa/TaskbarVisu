@@ -30,7 +30,7 @@ drawn straight into the empty space on each side of your icons, in a dot-matrix 
 | **Waveform** | mirror, envelope or triggered oscilloscope |
 | **Loudness history** | LUFS over 15 s to 5 min against your target |
 | **Piano roll** | the notes actually played, octave included, on a 3–6 octave keyboard with scrolling history: dedicated two-resolution FFT, peaks accurate to a few cents, harmonics sieved out |
-| **XY oscilloscope** | goniometer or Lissajous drawn in phosphor that fades like a CRT, plus "oscilloscope music" drawings (stars, hearts, little characters…) that change with the beat, in pairs, shaken by the sound |
+| **XY oscilloscope** | goniometer or Lissajous drawn in phosphor that fades like a CRT, and now and then the trace itself turns into an "oscilloscope music" drawing (star, heart, little character…) at a random moment and place, shaken by the sound, before turning back into the sound |
 | **Raw data** | the samples as your sound card sees them, in scrolling hex or a bit matrix. Purely experimental |
 
 The *Layout* page shows your taskbar in miniature, modules to scale: click one to set its width, drag it
@@ -62,7 +62,7 @@ Replay it from *Home* or *General*.
 
 One-click presets (Lab, MiniMeters-like, CRT Phosphor, Synthwave, Vaporwave, Chrome Y2K, Toxic, RGB,
 and hardware looks: VFD, LCD, Nixie), 16 palettes including RGB, a colour animation for any palette
-(scroll up or down, one colour at a time, back and forth, breathing pulse; 2 to 60 s per cycle), custom
+(scroll up or down, one colour at a time, back and forth, breathing pulse; 0.2 to 60 s per cycle), custom
 gradients of 2 to 8 colours (global or per module), real colour picker, pixel or smooth font, scanlines,
 per-module options tucked behind *More options*. UI in English, French, Spanish and German (follows Windows).
 

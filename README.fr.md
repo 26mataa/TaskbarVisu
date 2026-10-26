@@ -22,7 +22,7 @@ posés dans les espaces libres à gauche et à droite des icônes, sans cadre.
 | **Historique de sonie** | Courbe LUFS sur 15 s à 5 min (barres LED ou courbe), ligne de cible |
 | **Accordeur** | 2 modes : note + justesse (±50 cents), tonalité (gamme) avec confiance et, pour un morceau modal, sa note centrale (« ◆F MIX ») ; mini-piano LED, notation C D E, Do Ré Mi ou Camelot ; en option, les tonalités précédentes du morceau (« <C <Aᵐ ») |
 | **Piano roll** | Notes réellement entendues, octave comprise, justes à quelques cents (analyse dédiée en deux résolutions), sur un clavier de 3 à 6 octaves ; leur historique défile au-dessus (couleur selon la hauteur ou l'intensité, clavier en bas ou en haut) |
-| **Oscilloscope XY** | Goniomètre (milieu / côtés) ou Lissajous (gauche / droite) tracé en phosphore qui s'éteint lentement, réticule gradué ; dessins façon « musique d'oscilloscope » (étoiles, cœurs, petits personnages…) qui changent au rythme, en double, et tremblent avec le son |
+| **Oscilloscope XY** | Goniomètre (milieu / côtés) ou Lissajous (gauche / droite) tracé en phosphore qui s'éteint lentement, réticule gradué ; par moments, le tracé lui-même se change en dessin façon « musique d'oscilloscope » (étoile, cœur, petit personnage…), à un moment et un endroit au hasard, tremble avec le son puis redevient le son |
 | **Données brutes** | Les échantillons tels que la carte son les voit : lignes hexadécimales qui défilent ou matrice de bits. Purement expérimental |
 
 Disposition par défaut : niveaux, spectrogramme et spectre à gauche ; imageur, accordeur et forme d'onde
@@ -133,7 +133,7 @@ la trace liste aussi les pics de chaque image (fréquence:amplitude:part non exp
   personnalisé (grave → aigu) de 2 à 8 couleurs : clic sur la barre pour ajouter une couleur, repères à
   glisser, clic droit pour retirer, inversion, point de départ pris d'une palette existante.
 - Animation des couleurs, pour toutes les palettes : défilement vers les aigus ou les graves, une couleur à la fois, va-et-vient,
-  pulsation ou aucune, avec la durée du cycle (2 à 60 s). La palette RGB défile par défaut.
+  pulsation ou aucune, avec la durée du cycle (0,2 à 60 s). La palette RGB défile par défaut.
 - Textes et repères : lavande, teintés par la palette, accentuation Windows ou couleur choisie au sélecteur.
 - Chaque module peut avoir ses propres couleurs : une autre palette, son propre dégradé ou une couleur unie.
 - Pas de fond : les modules se fondent dans la barre (fond écran LCD olive clair en option, pour le style LCD).

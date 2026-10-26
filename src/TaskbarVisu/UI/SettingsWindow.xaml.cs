@@ -437,6 +437,10 @@ public partial class SettingsWindow : Window
         MergeHints(p);
     }
 
+    /// <summary>Durées proposées pour un cycle de l'animation des couleurs, en secondes.</summary>
+    private static readonly double[] CycleDurations =
+        { 0.2, 0.3, 0.4, 0.5, 0.6, 0.8, 1, 1.25, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10, 12, 14, 17, 20, 25, 30, 40, 50, 60 };
+
     /// <summary>Animation des couleurs (toutes les palettes) : effet, puis durée d'un cycle quand il y a une animation.</summary>
     private void AddAnimationControls(Panel p)
     {
@@ -446,8 +450,12 @@ public partial class SettingsWindow : Window
             S.Animation = (ColorAnimation)i;
             if (speed is not null) speed.Visibility = S.Animation == ColorAnimation.Still ? Visibility.Collapsed : Visibility.Visible;
         }, description: "Fait bouger les couleurs de la palette, quelle qu'elle soit (la palette RGB défile par défaut).", icon: "");
-        speed = AddSlider(p, "Durée d'un cycle", 2, 60, 1, S.AnimationSeconds, v => $"{v:0} s", v => S.AnimationSeconds = v,
-            "Plus court = plus rapide.", "");
+        // Curseur par paliers : fins sous 2 s (jusqu'au clignotement rapide), plus espacés au-delà. Une durée réglée
+        // autrement (ancienne version, style partagé) garde sa place parmi eux.
+        var steps = CycleDurations.Append(S.AnimationSeconds).Distinct().Order().ToArray();
+        speed = AddSlider(p, "Durée d'un cycle", 0, steps.Length - 1, 1, Array.IndexOf(steps, S.AnimationSeconds),
+            i => steps[(int)i].ToString("0.##", CultureInfo.CurrentCulture) + " s",
+            i => S.AnimationSeconds = steps[(int)i], "Plus court = plus rapide.", "");
         speed.Visibility = S.Animation == ColorAnimation.Still ? Visibility.Collapsed : Visibility.Visible;
     }
 
