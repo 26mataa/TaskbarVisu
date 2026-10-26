@@ -56,6 +56,9 @@ internal sealed partial class RenderHost : IDisposable
     private ZoneView[] _zones = Array.Empty<ZoneView>();
     private readonly Dictionary<string, double> _profile = new();
     private int _profileFrames;
+    private readonly Dictionary<string, long> _profileAlloc = new();
+    private long _allocMark, _allocTotalMark;
+    private int[] _gcMark = new int[3];
     private volatile bool _raiseRequested;
     private IntPtr _timer, _hook, _showHideHook;
     private Win32.WinEventProc? _hookProc, _showHideProc;
@@ -188,6 +191,7 @@ internal sealed partial class RenderHost : IDisposable
             {
                 nextCheck = now + 0.25;
                 UpdateVisibility();
+                TrimGen0();
             }
 
             if (_visible && (_raiseRequested || now >= nextRaise))
@@ -205,7 +209,7 @@ internal sealed partial class RenderHost : IDisposable
             if (active)
             {
                 if (!_wasActive) _analyzer.Resync();
-                long t0 = Stopwatch.GetTimestamp();
+                long t0 = Mark();
                 _analyzer.Process(dt);
                 Profile("analyse", t0);
                 AnimateThemes(now);
@@ -214,10 +218,10 @@ internal sealed partial class RenderHost : IDisposable
                 {
                     foreach (var item in zone.Items)
                     {
-                        t0 = Stopwatch.GetTimestamp();
+                        t0 = Mark();
                         _ctx.Theme = ThemeFor(item.Module);
                         item.Module.Update(_analyzer, dt);
-                        Profile(item.Module.Info.Id + ".update", t0);
+                        Profile(item.Module, ".update", t0);
                         allIdle &= item.Module.IsIdle;
                     }
                 }
@@ -255,11 +259,51 @@ internal sealed partial class RenderHost : IDisposable
 
     private ZoneView[] Zones() => _zones;
 
+    private long _gen0Mark;
+    private int _gen0Count;
+
+    /// <summary>
+    /// Le budget de la génération 0 du GC suit la taille du cache L3 : sur un processeur à gros cache (X3D…),
+    /// des dizaines de Mo s'accumulent avant la première collecte, et la mémoire privée double. Une petite
+    /// collecte de génération 0 tous les 4 Mo alloués (quelques dixièmes de ms, rarement) la garde basse.
+    /// </summary>
+    private void TrimGen0()
+    {
+        const long Budget = 4 << 20;
+        long allocated = GC.GetTotalAllocatedBytes();
+        int count = GC.CollectionCount(0);
+        if (count != _gen0Count)
+        {
+            _gen0Count = count;
+            _gen0Mark = allocated;
+        }
+        else if (allocated - _gen0Mark > Budget)
+        {
+            GC.Collect(0, GCCollectionMode.Forced, blocking: true);
+            _gen0Count = GC.CollectionCount(0);
+            _gen0Mark = allocated;
+        }
+    }
+
+    /// <summary>Début d'une mesure du profil : horodatage, et octets alloués jusque-là par ce thread.</summary>
+    private long Mark()
+    {
+        if (DumpDirectory is not null) _allocMark = GC.GetAllocatedBytesForCurrentThread();
+        return Stopwatch.GetTimestamp();
+    }
+
+    /// <summary>Mesure d'un module : la clé n'est construite qu'en mode diagnostic (aucune chaîne par image sinon).</summary>
+    private void Profile(VisualizerModule module, string suffix, long start)
+    {
+        if (DumpDirectory is not null) Profile(module.Info.Id + suffix, start);
+    }
+
     private void Profile(string key, long start)
     {
         if (DumpDirectory is null) return;
         double ms = (Stopwatch.GetTimestamp() - start) * 1000.0 / Stopwatch.Frequency;
         _profile[key] = _profile.GetValueOrDefault(key) + ms;
+        _profileAlloc[key] = _profileAlloc.GetValueOrDefault(key) + GC.GetAllocatedBytesForCurrentThread() - _allocMark;
     }
 
     private void Pump()
@@ -467,12 +511,12 @@ internal sealed partial class RenderHost : IDisposable
                 continue;
             }
 
-            long t0 = Stopwatch.GetTimestamp();
+            long t0 = Mark();
             canvas.Clear(SKColors.Transparent);
             Profile("clear", t0);
             foreach (var item in zone.Items)
             {
-                t0 = Stopwatch.GetTimestamp();
+                t0 = Mark();
                 canvas.Save();
                 canvas.ClipRect(item.Rect);
                 if (_settings.Background != BackgroundChoice.None)
@@ -497,9 +541,9 @@ internal sealed partial class RenderHost : IDisposable
                 {
                     Log.Error($"Rendu du module {item.Module.Info.Id}", ex);
                 }
-                Profile(item.Module.Info.Id + ".render", t0);
+                Profile(item.Module, ".render", t0);
 
-                t0 = Stopwatch.GetTimestamp();
+                t0 = Mark();
                 var r = item.Rect;
                 if (item.FadeLeft is not null)
                     canvas.DrawRect(r.Left, r.Top, item.FadeWidth, r.Height, item.FadeLeft);
@@ -509,7 +553,7 @@ internal sealed partial class RenderHost : IDisposable
                 Profile("fade", t0);
             }
 
-            t0 = Stopwatch.GetTimestamp();
+            t0 = Mark();
             zone.Window.Present(opacity);
             Profile("present", t0);
             if (_visible && !Headless && !zone.Window.IsShown) zone.Window.Show();
@@ -646,10 +690,19 @@ internal sealed partial class RenderHost : IDisposable
             SaveImages(directory, string.Empty);
             if (_profileFrames > 0)
             {
-                lines.Add($"profil ({_profileFrames} images, ms moyennes par image) — détection barre : {_tracker.LastDetectMs:0.0} ms");
+                lines.Add($"profil ({_profileFrames} images, ms et octets alloués moyens par image) — détection barre : {_tracker.LastDetectMs:0.0} ms");
                 foreach (var (key, total) in _profile.OrderByDescending(p => p.Value))
-                    lines.Add($"  {key,-22} {total / _profileFrames,7:0.000}");
+                    lines.Add($"  {key,-22} {total / _profileFrames,7:0.000} {_profileAlloc.GetValueOrDefault(key) / _profileFrames,9:0} o");
+                long allocated = GC.GetTotalAllocatedBytes();
+                int[] gcs = { GC.CollectionCount(0), GC.CollectionCount(1), GC.CollectionCount(2) };
+                lines.Add($"mémoire : {(allocated - _allocTotalMark) / 1024.0 / 5:0} Ko alloués/s (tous threads), GC {gcs[0] - _gcMark[0]}/{gcs[1] - _gcMark[1]}/{gcs[2] - _gcMark[2]} " +
+                          $"en 5 s, tas {GC.GetGCMemoryInfo().HeapSizeBytes / 1048576.0:0.0} Mo, engagé {GC.GetGCMemoryInfo().TotalCommittedBytes / 1048576.0:0.0} Mo, " +
+                          $"ensemble de travail {Environment.WorkingSet / 1048576.0:0} Mo");
+                _allocTotalMark = allocated;
+                _gcMark = gcs;
+                if (AllocationSampler.Instance is { } sampler) lines.AddRange(sampler.Report());
                 _profile.Clear();
+                _profileAlloc.Clear();
                 _profileFrames = 0;
             }
             File.WriteAllLines(Path.Combine(directory, "state.txt"), lines);

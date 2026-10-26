@@ -39,7 +39,13 @@ internal sealed record ModuleInfo(
     OptionDef[] Options,
     Func<VisualizerModule> Create)
 {
-    public OptionDef? Option(string key) => Array.Find(Options, o => o.Key == key);
+    /// <summary>Option par clé. Appelé à chaque image : une boucle, sans lambda ni allocation.</summary>
+    public OptionDef? Option(string key)
+    {
+        foreach (var option in Options)
+            if (option.Key == key) return option;
+        return null;
+    }
 }
 
 internal static class ModuleCatalog
@@ -229,7 +235,12 @@ internal static class ModuleCatalog
             () => new RawDataModule()),
     };
 
-    public static ModuleInfo? Find(string id) => Array.Find(All, m => m.Id == id);
+    public static ModuleInfo? Find(string id)
+    {
+        foreach (var info in All)
+            if (info.Id == id) return info;
+        return null;
+    }
 
     public static ModuleConfig CreateConfig(string id)
     {

@@ -103,11 +103,12 @@ internal sealed class VuMeterModule : VisualizerModule
         }
 
         var key = (t.Version, ctx.Labels.Key, labels, Flag("percent"), ctx.ShowScales, rect.Width, rect.Height);
-        _scale.Draw(canvas, rect.Left, rect.Top, (int)rect.Width, (int)rect.Height, key, c =>
+        if (_scale.Begin((int)rect.Width, (int)rect.Height, key) is { } c)
         {
             c.Translate(-rect.Left, -rect.Top);
             DrawScale(c, rect, ctx, g, labels);
-        });
+        }
+        _scale.Draw(canvas, rect.Left, rect.Top);
 
         // Aiguille(s) : du pivot (hors champ, sous le module) jusqu'au-dessus de la graduation.
         bool stereo = OptI("mode") == 1;
@@ -154,7 +155,7 @@ internal sealed class VuMeterModule : VisualizerModule
 
         // Partie statique : segments éteints, graduations chiffrées, légende.
         var key = (t.Version, ctx.Labels.Key, labels, OptI("mode"), rect.Width, rect.Height, "led");
-        _scale.Draw(canvas, rect.Left, rect.Top, (int)rect.Width, (int)rect.Height, key, c =>
+        if (_scale.Begin((int)rect.Width, (int)rect.Height, key) is { } c)
         {
             c.Translate(-rect.Left, -rect.Top);
             foreach (var ring in rings)
@@ -164,7 +165,8 @@ internal sealed class VuMeterModule : VisualizerModule
                     DrawSegment(c, g, ring, i, count, mid > zero ? t.Hot.WithAlpha(0x40) : t.Grid, p);
                 }
             DrawLabels(c, rect, ctx, g, labels, rings[0].Radius + rings[0].Thickness / 2);
-        });
+        }
+        _scale.Draw(canvas, rect.Left, rect.Top);
 
         // Segments allumés : traînée atténuée jusqu'à la tête, tête pleine intensité (rouge au-delà de 0 VU).
         float[] positions = { _posL, _posR };

@@ -33,8 +33,11 @@ function Write-Utf8([string]$path, [string]$text, [bool]$bom) {
 $portable = Join-Path $build 'portable'
 if (Test-Path $portable) { Remove-Item $portable -Recurse -Force }
 Write-Host '1/4  dotnet publish (autonome, un seul fichier)…'
+# Sans compression : un exe compressé décompresse tout .NET en mémoire au démarrage (+80 Mo de mémoire
+# privée, mesuré). Non compressé, les assemblys sont lues directement dans le fichier ; le zip et
+# l'installeur le compressent de toute façon pour le téléchargement.
 & dotnet publish $project -c Release -r win-x64 --self-contained true -nologo -v q `
-    -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true `
+    -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=false `
     -p:DebugType=none -o $portable
 if ($LASTEXITCODE -ne 0) { throw 'dotnet publish a échoué' }
 $exe = Join-Path $portable 'TaskbarVisu.exe'

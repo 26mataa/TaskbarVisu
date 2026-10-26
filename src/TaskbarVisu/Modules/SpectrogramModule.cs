@@ -118,7 +118,7 @@ internal sealed class SpectrogramModule : VisualizerModule
         int p = ctx.P;
         float inset = MathF.Ceiling(ctx.EdgeInset);
         var key = (ctx.Theme.Version, minF, maxF, atRight, p, inset, rect.Width, rect.Height);
-        _scale.Draw(canvas, rect.Left, rect.Top, (int)rect.Width, (int)rect.Height, key, c =>
+        if (_scale.Begin((int)rect.Width, (int)rect.Height, key) is { } c)
         {
             _tick.Color = ctx.Theme.InkDim;
             foreach (var f in Marks)
@@ -129,7 +129,8 @@ internal sealed class SpectrogramModule : VisualizerModule
                 float x = atRight ? rect.Width - inset - 3 * p : inset;
                 c.DrawRect(x, y, 3 * p, p, _tick);
             }
-        });
+        }
+        _scale.Draw(canvas, rect.Left, rect.Top);
     }
 
     public override void Dispose()

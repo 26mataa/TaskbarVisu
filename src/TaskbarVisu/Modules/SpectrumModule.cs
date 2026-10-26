@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using SkiaSharp;
 using TaskbarVisu.Dsp;
 using TaskbarVisu.Rendering;
@@ -146,15 +146,14 @@ internal sealed class SpectrumModule : VisualizerModule
         float h = rect.Height, bottom = rect.Bottom;
         int style = Style;
 
-        float Norm(float db) => Math.Clamp((db - floor) / (ceiling - floor), 0, 1);
-        float Y(float db) => bottom - Norm(db) * h;
+        var axis = new LevelAxis(floor, ceiling, bottom, h);
 
         var box = LayoutReadout(rect, ctx, minF, maxF, out string readout, out float peakX);
         if (Flag("grid")) DrawGrid(canvas, rect, ctx, minF, maxF, box);
 
         if (style == Relief)
         {
-            DrawRelief(canvas, rect, ctx, Norm, Y);
+            DrawRelief(canvas, rect, ctx, axis);
         }
         else if (Discrete)
         {
@@ -162,7 +161,7 @@ internal sealed class SpectrumModule : VisualizerModule
             float x0 = MathF.Round(rect.Left + (rect.Width - (_columns * step - p)) / 2);
             for (int i = 0; i < _columns; i++)
             {
-                float top = MathF.Round(Y(_disp[i]));
+                float top = MathF.Round(axis.Y(_disp[i]));
                 float x = x0 + i * step;
                 _bar.Color = t.Spectral(i / (float)(_columns - 1)).WithAlpha(0xF0);
                 if (bottom - top >= 1)
@@ -187,18 +186,18 @@ internal sealed class SpectrumModule : VisualizerModule
                 for (int i = 0; i < _columns; i++)
                 {
                     if (_peak[i] <= floor) continue;
-                    canvas.DrawRect(x0 + i * step, MathF.Round(Y(_peak[i])) - p, barW, p, _bar);
+                    canvas.DrawRect(x0 + i * step, MathF.Round(axis.Y(_peak[i])) - p, barW, p, _bar);
                 }
             }
         }
         else
         {
-            float XCol(int i) => rect.Left + (i + 0.5f) / _columns * rect.Width;
+            float colW = rect.Width / _columns;
             _path.Rewind();
             if (style == 3) _path.MoveTo(rect.Left, bottom);
             for (int i = 0; i < _columns; i++)
             {
-                float x = XCol(i), y = Y(_disp[i]);
+                float x = rect.Left + (i + 0.5f) * colW, y = axis.Y(_disp[i]);
                 if (style == 4 && i == 0) _path.MoveTo(x, y);
                 else _path.LineTo(x, y);
             }
@@ -210,29 +209,25 @@ internal sealed class SpectrumModule : VisualizerModule
                 canvas.DrawPath(_path, _fill);
                 ctx.ApplyScanlines(canvas, rect);
                 // Contour net par-dessus le remplissage.
-                Polyline(_disp, XCol, Y);
+                Polyline(_disp, rect, axis);
             }
-            _line.StrokeWidth = Math.Max(1f, 1.1f * ctx.Scale);
-            _line.Color = t.Ink;
-            canvas.DrawPath(_path, _line);
+            StrokeThin(canvas, 1.1f * ctx.Scale, t.Ink);
 
             if (Flag("peaks"))
             {
-                Polyline(_peak, XCol, Y);
-                _line.StrokeWidth = Math.Max(1f, ctx.Scale * 0.8f);
-                _line.Color = t.Ink.WithAlpha(0x60);
-                canvas.DrawPath(_path, _line);
+                Polyline(_peak, rect, axis);
+                StrokeThin(canvas, 0.8f * ctx.Scale, t.Ink.WithAlpha(0x60));
             }
         }
 
-        if (readout.Length > 0) DrawReadout(canvas, rect, ctx, box, readout, peakX, Y);
+        if (readout.Length > 0) DrawReadout(canvas, rect, ctx, box, readout, peakX, axis);
     }
 
     /// <summary>
     /// Une bande par colonne, couleur selon son propre niveau (sombre quand c'est faible, vif sur les pics),
     /// une colonne sur deux un peu plus sombre (texture rayée), fondu vers le bas, contour fin par-dessus.
     /// </summary>
-    private void DrawRelief(SKCanvas canvas, SKRect rect, RenderContext ctx, Func<float, float> norm, Func<float, float> y)
+    private void DrawRelief(SKCanvas canvas, SKRect rect, RenderContext ctx, LevelAxis axis)
     {
         var t = ctx.Theme;
         float colW = rect.Width / _columns;
@@ -241,10 +236,10 @@ internal sealed class SpectrumModule : VisualizerModule
         canvas.SaveLayer(rect, null);
         for (int i = 0; i < _columns; i++)
         {
-            float v = norm(_disp[i]);
+            float v = axis.Norm(_disp[i]);
             if (v <= 0) continue;
             float x0 = MathF.Round(rect.Left + i * colW), x1 = MathF.Round(rect.Left + (i + 1) * colW);
-            float top = MathF.Round(y(_disp[i]));
+            float top = MathF.Round(axis.Y(_disp[i]));
             if (bottom - top < 1 || x1 <= x0) continue;
             // Faible : bas de la palette (sombre) ; moyen : milieu ; pics : haut de la palette.
             _bar.Color = t.Spectral(1.09f * v - 0.09f).WithAlpha((i & 1) == 0 ? (byte)0xFF : (byte)0xC0);
@@ -255,39 +250,60 @@ internal sealed class SpectrumModule : VisualizerModule
         canvas.Restore();
         ctx.ApplyScanlines(canvas, rect);
 
-        float XCol(int i) => rect.Left + (i + 0.5f) * colW;
-
         // Spectre des côtés (ce qui diffère entre gauche et droite) : ligne fine en filigrane.
         if (Flag("side"))
         {
-            Polyline(_side, XCol, y);
-            _line.StrokeWidth = Math.Max(1f, 0.8f * ctx.Scale);
-            _line.Color = t.Ink.WithAlpha(0x58);
-            canvas.DrawPath(_path, _line);
+            Polyline(_side, rect, axis);
+            StrokeThin(canvas, 0.8f * ctx.Scale, t.Ink.WithAlpha(0x58));
         }
 
         if (Flag("peaks"))
         {
-            Polyline(_peak, XCol, y);
-            _line.StrokeWidth = Math.Max(1f, 0.8f * ctx.Scale);
-            _line.Color = t.Ink.WithAlpha(0x30);
-            canvas.DrawPath(_path, _line);
+            Polyline(_peak, rect, axis);
+            StrokeThin(canvas, 0.8f * ctx.Scale, t.Ink.WithAlpha(0x30));
         }
 
-        Polyline(_disp, XCol, y);
-        _line.StrokeWidth = Math.Max(1f, ctx.Scale);
-        _line.Color = t.Ink.WithAlpha(0xE8);
-        canvas.DrawPath(_path, _line);
+        Polyline(_disp, rect, axis);
+        StrokeThin(canvas, ctx.Scale, t.Ink.WithAlpha(0xE8));
     }
 
-    private void Polyline(float[] values, Func<int, float> x, Func<float, float> y)
+    /// <summary>Échelle verticale : niveau en dB vers hauteur dans le module (struct : aucune allocation par image).</summary>
+    private readonly struct LevelAxis(float floor, float ceiling, float bottom, float height)
+    {
+        public float Norm(float db) => Math.Clamp((db - floor) / (ceiling - floor), 0, 1);
+        public float Y(float db) => bottom - Norm(db) * height;
+    }
+
+    /// <summary>Courbe des valeurs, un point au centre de chaque colonne, dans _path.</summary>
+    private void Polyline(float[] values, SKRect rect, LevelAxis axis)
     {
         _path.Rewind();
+        float colW = rect.Width / _columns;
         for (int i = 0; i < _columns; i++)
         {
-            if (i == 0) _path.MoveTo(x(i), y(values[i]));
-            else _path.LineTo(x(i), y(values[i]));
+            float x = rect.Left + (i + 0.5f) * colW, y = axis.Y(values[i]);
+            if (i == 0) _path.MoveTo(x, y);
+            else _path.LineTo(x, y);
         }
+    }
+
+    /// <summary>
+    /// Trace _path en lignes de 1 px, que Skia dessine dix fois plus vite qu'un trait antialiasé plus épais
+    /// (0,01 ms au lieu de 0,12 ms par courbe) ; aux grandes échelles, des lignes décalées d'un pixel vers
+    /// le bas rendent l'épaisseur demandée.
+    /// </summary>
+    private void StrokeThin(SKCanvas canvas, float width, SKColor color)
+    {
+        _line.StrokeWidth = 1;
+        _line.Color = color;
+        int passes = Math.Max(1, (int)MathF.Round(width));
+        canvas.DrawPath(_path, _line);
+        for (int i = 1; i < passes; i++)
+        {
+            canvas.Translate(0, 1);
+            canvas.DrawPath(_path, _line);
+        }
+        if (passes > 1) canvas.Translate(0, 1 - passes);
     }
 
     /// <summary>
@@ -332,7 +348,7 @@ internal sealed class SpectrumModule : VisualizerModule
         return SKRect.Create(bx, MathF.Round(rect.Top + p), size.Width, size.Height);
     }
 
-    private void DrawReadout(SKCanvas canvas, SKRect rect, RenderContext ctx, SKRect box, string text, float peakX, Func<float, float> y)
+    private void DrawReadout(SKCanvas canvas, SKRect rect, RenderContext ctx, SKRect box, string text, float peakX, LevelAxis axis)
     {
         var t = ctx.Theme;
         int p = ctx.P;
@@ -340,7 +356,7 @@ internal sealed class SpectrumModule : VisualizerModule
         if (peakX >= rect.Left && peakX <= rect.Right)
         {
             int col = Math.Clamp((int)((peakX - rect.Left) / rect.Width * _columns), 0, _columns - 1);
-            float py = MathF.Round(y(_disp[col]));
+            float py = MathF.Round(axis.Y(_disp[col]));
             if (py < rect.Bottom - p)
             {
                 _bar.Color = t.Ink;
@@ -361,7 +377,7 @@ internal sealed class SpectrumModule : VisualizerModule
         int p = ctx.P;
         float X(float f) => MathF.Round(MathF.Log(f / minF) / MathF.Log(maxF / minF) * rect.Width);
         var key = (t.Version, minF, maxF, rect.Width, rect.Height);
-        _gridLayer.Draw(canvas, rect.Left, rect.Top, (int)rect.Width, (int)rect.Height, key, c =>
+        if (_gridLayer.Begin((int)rect.Width, (int)rect.Height, key) is { } c)
         {
             _grid.Color = t.GridFaint;
             foreach (var f in GridMinor)
@@ -369,7 +385,8 @@ internal sealed class SpectrumModule : VisualizerModule
             _grid.Color = t.Grid;
             foreach (var (f, _) in GridMajor)
                 if (f > minF && f < maxF) c.DrawRect(X(f), 0, p, rect.Height, _grid);
-        });
+        }
+        _gridLayer.Draw(canvas, rect.Left, rect.Top);
 
         if (!ctx.ShowScales || rect.Height < 22 * p) return;
         foreach (var (f, label) in GridMajor)

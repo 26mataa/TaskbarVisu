@@ -129,11 +129,12 @@ internal sealed class LevelsModule : VisualizerModule
         // Partie statique : lettres, segments éteints, graduations, cible LUFS, légende.
         var key = (t.Version, ctx.Labels.Key, rect.Width, rect.Height, rect.Left, range, segmented,
             Flag("showText"), Flag("showLufsBar"), OptF("target"), ctx.ShowScales, ctx.EdgeInset);
-        _static.Draw(canvas, rect.Left, rect.Top, (int)rect.Width, (int)rect.Height, key, c =>
+        if (_static.Begin((int)rect.Width, (int)rect.Height, key) is { } c)
         {
             c.Translate(-rect.Left, -rect.Top);
             DrawStatic(c, rect, ctx, L, range);
-        });
+        }
+        _static.Draw(canvas, rect.Left, rect.Top);
 
         // Segments allumés.
         DrawBar(canvas, L, L.YL, _dispL, _holdL, range, t);

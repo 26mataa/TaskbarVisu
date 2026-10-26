@@ -105,7 +105,7 @@ internal sealed class XyScopeModule : VisualizerModule
             var (x0, w) = PlotArea();
             bool gonio = OptI("mode") == 0;
             var gk = (t.Version, ctx.Labels.Key, x0, w, gonio, rect.Width, rect.Height);
-            _graticule.Draw(canvas, rect.Left, rect.Top, (int)rect.Width, (int)rect.Height, gk, c =>
+            if (_graticule.Begin((int)rect.Width, (int)rect.Height, gk) is { } c)
             {
                 int p = ctx.P;
                 _grid.Color = t.GridFaint;
@@ -117,7 +117,8 @@ internal sealed class XyScopeModule : VisualizerModule
                     ctx.Labels.Draw(c, "L", x0 + p, p, t.InkDim);
                     ctx.Labels.Draw(c, "R", x0 + w - ctx.Labels.Measure("R") - p, p, t.InkDim);
                 }
-            });
+            }
+            _graticule.Draw(canvas, rect.Left, rect.Top);
         }
         canvas.DrawBitmap(_bitmap, rect.Left, rect.Top);
         ctx.ApplyScanlines(canvas, rect);

@@ -104,40 +104,20 @@ internal sealed class TunerModule : VisualizerModule
                 int tonic = _analyzer is { KeyActive: true } a ? a.KeyTonic : -1;
                 bool minor = _analyzer?.KeyMinor ?? false;
                 bool unsure = _analyzer?.ModeAmbiguous ?? false;
-                // Mode incertain (pas de tierce nette) : on garde le meilleur choix, suivi d'un « ? ».
-                string quality = (minor ? "MIN" : "MAJ") + (unsure ? "?" : string.Empty);
-                string big, small;
-                if (tonic < 0)
-                {
-                    big = "--";
-                    small = string.Empty;
-                }
-                else if (Notation == 2)
-                {
-                    big = Harmony.Camelot(tonic, minor);
-                    small = $"{Harmony.KeyName(tonic, minor, false)} {quality}";
-                }
-                else
-                {
-                    big = Harmony.KeyName(tonic, minor, Latin);
-                    small = quality;
-                }
                 // Morceau modal : la note où la musique se pose remplace la confiance, « ◆F MIX » = centré sur Fa, mixolydien.
                 int centre = tonic < 0 ? -1 : _analyzer!.Centre;
                 // Historique (option) : « <C <AM » = tonalités précédentes du morceau, la plus récente d'abord.
-                var history = tonic >= 0 && Flag("history") ? _analyzer!.KeyHistory : Array.Empty<int>();
-                string? detail = tonic < 0 ? null
-                    : centre >= 0
-                        ? $"◆{Harmony.NoteName(centre, Latin, Harmony.KeyUsesFlats(tonic, minor))} {Harmony.ModeName(centre, tonic, minor)}"
-                    : history.Count > 0
-                        ? string.Join(" ", history.Take(2).Select(k => "<" + Harmony.KeyName(k % 12, k >= 12, Latin) + (k >= 12 ? "ᵐ" : "")))
-                        : ((int)Math.Round(_analyzer!.KeyConfidence * 100)).ToString(CultureInfo.InvariantCulture) + "%";
-                var scale = tonic < 0 ? Array.Empty<int>() : Harmony.Scale(tonic, minor);
-                // Les notes qui changent entre majeur et mineur (tierce, sixte, septième) sont atténuées si le mode est incertain.
-                var uncertain = unsure && tonic >= 0
-                    ? scale.Except(Harmony.Scale(tonic, !minor)).ToArray()
-                    : Array.Empty<int>();
-                RenderHarmony(canvas, rect, ctx, big, small, detail, centre >= 0, scale, tonic, centre, _pc, uncertain);
+                IReadOnlyList<int> history = tonic >= 0 && Flag("history") ? _analyzer!.KeyHistory : Array.Empty<int>();
+                int confidence = tonic < 0 ? 0 : (int)Math.Round(_analyzer!.KeyConfidence * 100);
+                // Textes et gamme recalculés seulement quand ce qu'ils affichent change (pas de chaîne par image).
+                var key = (tonic, minor, unsure, centre, Notation, Latin, confidence,
+                    history.Count > 0 ? history[0] : -1, history.Count > 1 ? history[1] : -1);
+                if (key != _harmonyKey)
+                {
+                    _harmonyKey = key;
+                    BuildHarmonyTexts(tonic, minor, unsure, centre, history, confidence);
+                }
+                RenderHarmony(canvas, rect, ctx, _hBig, _hSmall, _hDetail, centre >= 0, _hScale, tonic, centre, _pc, _hUncertain);
                 break;
             }
             default:
@@ -146,7 +126,48 @@ internal sealed class TunerModule : VisualizerModule
         }
     }
 
+    private (int, bool, bool, int, int, bool, int, int, int) _harmonyKey = (-2, false, false, -1, -1, false, -1, -1, -1);
+    private string _hBig = "--", _hSmall = string.Empty;
+    private string? _hDetail;
+    private int[] _hScale = Array.Empty<int>(), _hUncertain = Array.Empty<int>();
+
+    private void BuildHarmonyTexts(int tonic, bool minor, bool unsure, int centre, IReadOnlyList<int> history, int confidence)
+    {
+        // Mode incertain (pas de tierce nette) : on garde le meilleur choix, suivi d'un « ? ».
+        string quality = (minor ? "MIN" : "MAJ") + (unsure ? "?" : string.Empty);
+        if (tonic < 0)
+        {
+            _hBig = "--";
+            _hSmall = string.Empty;
+        }
+        else if (Notation == 2)
+        {
+            _hBig = Harmony.Camelot(tonic, minor);
+            _hSmall = $"{Harmony.KeyName(tonic, minor, false)} {quality}";
+        }
+        else
+        {
+            _hBig = Harmony.KeyName(tonic, minor, Latin);
+            _hSmall = quality;
+        }
+        _hDetail = tonic < 0 ? null
+            : centre >= 0
+                ? $"◆{Harmony.NoteName(centre, Latin, Harmony.KeyUsesFlats(tonic, minor))} {Harmony.ModeName(centre, tonic, minor)}"
+            : history.Count > 0
+                ? string.Join(" ", history.Take(2).Select(k => "<" + Harmony.KeyName(k % 12, k >= 12, Latin) + (k >= 12 ? "ᵐ" : "")))
+                : confidence.ToString(CultureInfo.InvariantCulture) + "%";
+        _hScale = tonic < 0 ? Array.Empty<int>() : Harmony.Scale(tonic, minor);
+        // Les notes qui changent entre majeur et mineur (tierce, sixte, septième) sont atténuées si le mode est incertain.
+        _hUncertain = unsure && tonic >= 0
+            ? _hScale.Except(Harmony.Scale(tonic, !minor)).ToArray()
+            : Array.Empty<int>();
+    }
+
     // ------------------------------------------------------------------ Mode note
+
+    private int _noteKey = int.MinValue, _centsKey = int.MinValue;
+    private long _freqKey = long.MinValue;
+    private string _noteText = "--", _freqText = string.Empty, _centsText = string.Empty;
 
     private void RenderNote(SKCanvas canvas, SKRect rect, RenderContext ctx)
     {
@@ -155,7 +176,13 @@ internal sealed class TunerModule : VisualizerModule
         float inset = MathF.Ceiling(Math.Max(p, ctx.EdgeInset));
         bool active = _pc >= 0;
         bool inTune = active && Math.Abs(_cents) <= OptF("tolerance");
-        string note = active ? Harmony.NoteName(_pc, Latin) + _octave.ToString(CultureInfo.InvariantCulture) : "--";
+        int noteKey = active ? (_pc * 32 + _octave + 8) * 2 + (Latin ? 1 : 0) : -1;
+        if (noteKey != _noteKey)
+        {
+            _noteKey = noteKey;
+            _noteText = active ? Harmony.NoteName(_pc, Latin) + _octave.ToString(CultureInfo.InvariantCulture) : "--";
+        }
+        string note = _noteText;
 
         // Note en grand, à gauche.
         int factor = rect.Height >= 24 * p ? 2 : 1;
@@ -174,7 +201,7 @@ internal sealed class TunerModule : VisualizerModule
         float step = (gx1 - gx0) / (Ticks - 1);
 
         var key = (t.Version, ctx.Labels.Key, gx0 - rect.Left, gx1 - rect.Left, gaugeTop, gaugeH, "note");
-        _gauge.Draw(canvas, rect.Left, rect.Top, (int)rect.Width, (int)rect.Height, key, c =>
+        if (_gauge.Begin((int)rect.Width, (int)rect.Height, key) is { } c)
         {
             c.Translate(-rect.Left, -rect.Top);
             for (int i = 0; i < Ticks; i++)
@@ -183,7 +210,8 @@ internal sealed class TunerModule : VisualizerModule
                 _fill.Color = i == Ticks / 2 ? t.InkDim : t.Grid;
                 c.DrawRect(MathF.Round(gx0 + i * step), MathF.Round(gaugeTop + (gaugeH - h) / 2), p, h, _fill);
             }
-        });
+        }
+        _gauge.Draw(canvas, rect.Left, rect.Top);
 
         if (!active) return;
 
@@ -200,11 +228,22 @@ internal sealed class TunerModule : VisualizerModule
         }
 
         // Fréquence à gauche, écart en cents à droite, au-dessus de la jauge.
+        // Textes reformatés seulement quand la valeur affichée change.
         var ci = CultureInfo.InvariantCulture;
-        string freqText = _freq.ToString(_freq >= 1000 ? "0" : "0.0", ci) + "HZ";
-        string centsText = ((int)Math.Round(_cents)).ToString("+0;-0;0", ci) + "C";
-        _left.Draw(canvas, ctx, freqText, gx0, rect.Top + p, t.InkDim);
-        _right.Draw(canvas, ctx, centsText, gx1 - ctx.Labels.Measure(centsText), rect.Top + p, inTune ? t.Spectral(1f) : t.Ink);
+        long freqKey = _freq >= 1000 ? -(long)Math.Round(_freq) : (long)Math.Round(_freq * 10);
+        if (freqKey != _freqKey)
+        {
+            _freqKey = freqKey;
+            _freqText = _freq.ToString(_freq >= 1000 ? "0" : "0.0", ci) + "HZ";
+        }
+        int centsKey = (int)Math.Round(_cents);
+        if (centsKey != _centsKey)
+        {
+            _centsKey = centsKey;
+            _centsText = centsKey.ToString("+0;-0;0", ci) + "C";
+        }
+        _left.Draw(canvas, ctx, _freqText, gx0, rect.Top + p, t.InkDim);
+        _right.Draw(canvas, ctx, _centsText, gx1 - ctx.Labels.Measure(_centsText), rect.Top + p, inTune ? t.Spectral(1f) : t.Ink);
     }
 
     // ------------------------------------------------------------------ Mode tonalité

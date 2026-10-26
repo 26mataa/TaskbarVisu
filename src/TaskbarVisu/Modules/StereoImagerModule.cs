@@ -325,7 +325,7 @@ internal sealed class StereoImagerModule : VisualizerModule
 
         // Repères statiques : demi-cercle, anneaux, diagonales L / R, secteurs hors phase, lettres.
         var key = (t.Version, ctx.Labels.Key, ctx.ShowScales, r.Width, r.Height);
-        _guides.Draw(canvas, r.Left, r.Top, (int)MathF.Ceiling(r.Width), (int)MathF.Ceiling(r.Height), key, c =>
+        if (_guides.Begin((int)MathF.Ceiling(r.Width), (int)MathF.Ceiling(r.Height), key) is { } c)
         {
             c.Translate(-r.Left, -r.Top);
             var outer = new SKRect(cx - halfW, baseY - plotH, cx + halfW, baseY + plotH);
@@ -368,7 +368,8 @@ internal sealed class StereoImagerModule : VisualizerModule
                 ctx.Labels.Draw(c, "L", MathF.Round(dl.X - ctx.Labels.Measure("L") - 2 * p), MathF.Round(dl.Y - cap), t.InkDim);
                 ctx.Labels.Draw(c, "R", MathF.Round(dr.X + 2 * p), MathF.Round(dr.Y - cap), t.InkDim);
             }
-        });
+        }
+        _guides.Draw(canvas, r.Left, r.Top);
 
         // Axe mono : sa couleur indique la corrélation de phase.
         _fill.Color = AxisColor(t);
@@ -465,16 +466,17 @@ internal sealed class StereoImagerModule : VisualizerModule
         var t = ctx.Theme;
         int p = ctx.P;
         var key = (t.Version, r.Width, r.Height, p);
-        _corrTrack.Draw(canvas, r.Left, r.Top, (int)MathF.Ceiling(r.Width), (int)MathF.Ceiling(r.Height), key, c =>
+        if (_corrTrack.Begin((int)MathF.Ceiling(r.Width), (int)MathF.Ceiling(r.Height), key) is { } c)
         {
             // Piste à segments + repères -1 / 0 / +1.
             _fill.Color = t.GridFaint;
-            for (float x = 0; x < r.Width; x += 3 * p) c.DrawRect(x, 0, 2 * p, r.Height, _fill);
+            for (float sx = 0; sx < r.Width; sx += 3 * p) c.DrawRect(sx, 0, 2 * p, r.Height, _fill);
             _fill.Color = t.InkDim;
             c.DrawRect(MathF.Round(r.Width / 2), -p, p, r.Height + 2 * p, _fill);
             c.DrawRect(0, 0, p, r.Height, _fill);
             c.DrawRect(r.Width - p, 0, p, r.Height, _fill);
-        });
+        }
+        _corrTrack.Draw(canvas, r.Left, r.Top);
 
         if (_corrAlpha <= 0.02f) return;
         float cx = r.MidX;

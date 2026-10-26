@@ -9,8 +9,8 @@ drawn straight into the empty space on each side of your icons, in a dot-matrix 
 
 ```
 > CAPTURE ........ WASAPI: the whole PC, one output, ONE APP (process loopback) or an input
-> RENDER ......... SkiaSharp into layered Win32 windows, click-through, ~0.65 ms per frame
-> FOOTPRINT ...... ~5 % of one core at 60 fps, ~0 % in silence
+> RENDER ......... SkiaSharp into layered Win32 windows, click-through, ~0.55 ms per frame
+> FOOTPRINT ...... ~4 % of one core at 60 fps, ~0 % in silence, ~35 MB of private memory
 > LAYOUT ......... auto-detects the taskbar (top/bottom, compact, DPI, left-aligned icons) and widgets like FluentFlyout
 > SCREENS ........ main screen, a chosen one, or every taskbar at once
 ```
@@ -40,6 +40,8 @@ short LED *self-test* before going live.
 
 On first launch a 5-step guide lights up the free areas on your real taskbar, lets you pick a look and a
 module pack (Studio, Musician, Minimal or your own), then points at the tray icon. Replay it from *General*.
+
+![First-run guide](docs/welcome.png)
 
 ## Key detection that knows when to shut up
 

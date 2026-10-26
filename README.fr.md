@@ -173,12 +173,18 @@ la trace liste aussi les pics de chaque image (fréquence:amplitude:part non exp
 - En silence, une fois l'affichage figé, plus aucun rendu (≈ 0 % CPU).
 - Détection de la barre déclenchée par événements (ouverture / fermeture d'applications) plus une
   vérification de secours espacée (3 s par défaut).
-- Fenêtre de réglages libérée à la fermeture (seul le moteur WPF reste chargé) : pas d'accumulation au fil
-  des ouvertures.
+- Fenêtre de réglages libérée à la fermeture, puis mémoire rendue au système (collecte compactante et
+  ensemble de travail réduit) : pas d'accumulation au fil des ouvertures.
+- Exe non compressé : les assemblys .NET sont lues directement dans le fichier au lieu d'être
+  décompressées en mémoire (≈ 80 Mo de mémoire privée en moins ; le zip et l'installeur restent compressés).
+- Petites collectes forcées tous les 4 Mo alloués : sur un processeur à gros cache L3, le budget par défaut
+  de la génération 0 laisserait la mémoire grimper de plusieurs dizaines de Mo avant la première collecte.
+- Courbes du spectre tracées en traits fins de 1 px superposés (≈ 10× plus rapide qu'un trait épais lissé).
 
 Mesure indicative (Ryzen 7 9800X3D, 2560×1440 à 125 %, 6 modules de 125 px, 60 i/s, signal continu) :
-≈ 0,65 ms de rendu par image, ≈ 5 % d'un cœur, ≈ 80 Mo de mémoire privée une fois les historiques remplis
-(stable ensuite ; ≈ 180 Mo après une première ouverture des réglages, qui charge WPF).
+≈ 0,54 ms de rendu par image, ≈ 4 % d'un cœur, ≈ 35 Mo de mémoire privée et ≈ 25 à 40 Mo d'ensemble de
+travail, stables une fois les historiques remplis. Ouvrir les réglages charge WPF ; à la fermeture,
+l'ensemble de travail redescend sous ≈ 30 Mo.
 
 ## Langues
 
@@ -203,6 +209,9 @@ Clic sur l'icône de la zone de notification → fenêtre de réglages (style Wi
   libres clignotent sur la vraie barre, choix d'une ambiance (préréglage) et d'un pack de modules
   (Studio, Musicien, Minimal ou « Je choisis moi-même »), source audio, démarrage et raccourci, puis une
   flèche sur la barre montre l'icône de la zone de notification. Il se rejoue depuis Général.
+
+  ![Guide de démarrage](docs/welcome.png)
+
 - **Modules** : options propres à chaque module, réinitialisables.
 
 Réglages et journal : `%APPDATA%\TaskbarVisu\` (`settings.json`, `log.txt`). Mode portable : avec un fichier
@@ -236,7 +245,8 @@ l'installeur en ligne à l'adresse du manifeste) se font à la main. L'installeu
 (utilisé par la mise à jour intégrée) pour relancer TaskbarVisu après une installation silencieuse.
 
 Arguments : `--tray` (démarre sans ouvrir les réglages, utilisé par le démarrage avec Windows),
-`--dump <dossier>` (diagnostic : PNG du rendu et profil toutes les 5 s),
+`--dump <dossier>` (diagnostic : PNG du rendu et profil toutes les 5 s : temps et octets alloués par
+module, mémoire, collectes et types les plus alloués),
 `--selftest-ui` (diagnostic : construit la fenêtre de réglages et le guide hors écran puis quitte ; avec
 `--dump`, captures de chaque onglet et de chaque étape du guide),
 `--guide zones|tray` (diagnostic : affiche un repère du guide de démarrage sur la barre),

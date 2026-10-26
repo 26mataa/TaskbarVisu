@@ -95,7 +95,7 @@ internal sealed class LoudnessHistoryModule : VisualizerModule
         // Ligne de cible pointillée + sa valeur.
         float target = OptF("target");
         var key = (t.Version, ctx.Labels.Key, ctx.ShowScales, target, floor, rect.Width, rect.Height);
-        _static.Draw(canvas, rect.Left, rect.Top, (int)rect.Width, (int)rect.Height, key, c =>
+        if (_static.Begin((int)rect.Width, (int)rect.Height, key) is { } c)
         {
             c.Translate(-rect.Left, -rect.Top);
             float ty = MathF.Round(Y(target));
@@ -108,7 +108,8 @@ internal sealed class LoudnessHistoryModule : VisualizerModule
                 if (ly < rect.Top) ly = ty + 2 * p;
                 ctx.Labels.Draw(c, label, MathF.Round(rect.Left + Math.Max(p, ctx.EdgeInset)), MathF.Round(ly), t.InkDim);
             }
-        });
+        }
+        _static.Draw(canvas, rect.Left, rect.Top);
 
         int n = _history.Length;
         if (Bars)

@@ -161,6 +161,7 @@ public partial class App : Application
 
         var dumpIndex = Array.FindIndex(e.Args, a => a.Equals("--dump", StringComparison.OrdinalIgnoreCase));
         if (dumpIndex >= 0 && dumpIndex + 1 < e.Args.Length) _dumpDirectory = e.Args[dumpIndex + 1];
+        if (_dumpDirectory is not null) AllocationSampler.Start();
         _headless = headless;
         SyncScreens(force: true);
         // « Tous les écrans » : un écran branché ou débranché est pris en compte en quelques secondes.
@@ -224,7 +225,12 @@ public partial class App : Application
             ShowGuideMark(e.Args[guideIndex + 1] == "tray" ? GuideMark.Tray : GuideMark.Zones);
 
         bool startHidden = e.Args.Any(a => a.Equals("--tray", StringComparison.OrdinalIgnoreCase));
-        if (startHidden) return;
+        if (startHidden)
+        {
+            // Démarrage avec Windows : une fois tout initialisé, la mémoire du démarrage est rendue au système.
+            TrimMemorySoon(15);
+            return;
+        }
         ShowSettings();
         // Premier lancement : le guide de démarrage accompagne la découverte.
         if (Store.IsFirstRun && !headless) _settingsWindow?.ShowWelcome();
@@ -356,14 +362,33 @@ public partial class App : Application
                     _tray?.ShowHint(Loc.T("TaskbarVisu continue de tourner"),
                         Loc.T("Les visualiseurs restent actifs. Cliquez sur l'icône de la zone de notification pour rouvrir les réglages."));
                 }
-                // La fenêtre fermée est libérée : on rend la mémoire au système.
-                GC.Collect(2, GCCollectionMode.Optimized, blocking: false);
+                TrimMemorySoon();
             };
             _settingsWindow.Show();
         }
 
         if (_settingsWindow.WindowState == WindowState.Minimized) _settingsWindow.WindowState = WindowState.Normal;
         _settingsWindow.Activate();
+    }
+
+    /// <summary>
+    /// Une fois la fenêtre de réglages fermée (ou après le démarrage), quand WPF a lâché ses dernières références :
+    /// collecte complète qui rend la mémoire libre au système, puis ensemble de travail allégé (les pages encore
+    /// utiles par le rendu reviennent d'elles-mêmes). Sans cela, la mémoire de la fenêtre restait réservée.
+    /// </summary>
+    private void TrimMemorySoon(double seconds = 2)
+    {
+        var timer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(seconds) };
+        timer.Tick += (_, _) =>
+        {
+            timer.Stop();
+            if (_settingsWindow is not null || _exiting) return; // rouverte entre-temps
+            GC.Collect(2, GCCollectionMode.Aggressive, blocking: true, compacting: true);
+            GC.WaitForPendingFinalizers();
+            GC.Collect(2, GCCollectionMode.Aggressive, blocking: true, compacting: true);
+            Native.Win32.SetProcessWorkingSetSize(Native.Win32.GetCurrentProcess(), -1, -1);
+        };
+        timer.Start();
     }
 
     /// <summary>Appelé par l'interface après chaque modification de <see cref="Settings"/>.</summary>
