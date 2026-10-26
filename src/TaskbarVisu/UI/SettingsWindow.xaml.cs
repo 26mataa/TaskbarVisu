@@ -392,7 +392,8 @@ public partial class SettingsWindow : Window
 
         // 1. Préréglages : un clic règle tout le style d'un coup.
         p.Children.Add(Section("Préréglages"));
-        p.Children.Add(PresetGrid(4, () => RebuildKeepingScroll(AppearancePanel, BuildAppearance)));
+        p.Children.Add(PresetGrid(4, () => RebuildKeepingScroll(AppearancePanel, BuildAppearance), withMine: false));
+        BuildMyStyles(p);
 
         // 2. Couleurs : palette des données (avec son éditeur), animation, textes et thème.
         p.Children.Add(Section("Couleurs"));
@@ -451,34 +452,46 @@ public partial class SettingsWindow : Window
     }
 
     /// <summary>
-    /// Grille des préréglages : cartes à taille fixe, la carte du style actif est entourée.
-    /// Choisir un style ne déplace rien : seul le liseré change de carte.
+    /// Grille des préréglages, suivis des styles de l'utilisateur si <paramref name="withMine"/> : cartes à taille fixe,
+    /// la carte du style actif est entourée. Choisir un style ne déplace rien : seul le liseré change de carte.
     /// </summary>
-    private System.Windows.Controls.Primitives.UniformGrid PresetGrid(int columns, Action? applied)
+    private System.Windows.Controls.Primitives.UniformGrid PresetGrid(int columns, Action? applied, bool withMine = true)
     {
         var accent = AccentBrush(App.UiIsLight);
         var grid = new System.Windows.Controls.Primitives.UniformGrid { Columns = columns, Margin = new Thickness(0, 0, -8, 0) };
-        var current = StylePresets.Current(S);
-        foreach (var preset in StylePresets.All)
+        var mine = CurrentSavedStyle();
+        var current = mine is null ? StylePresets.Current(S) : null;
+
+        void Add(FrameworkElement preview, string name, bool selected, Action apply)
         {
             var card = CardButton(new StackPanel
             {
                 Children =
                 {
-                    PresetPreview(preset, 140, 38),
-                    new TextBlock { Text = Loc.T(preset.Name), Margin = new Thickness(0, 7, 0, 0) },
+                    preview,
+                    new TextBlock { Text = name, Margin = new Thickness(0, 7, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis },
                 },
-            }, ReferenceEquals(preset, current), accent);
+            }, selected, accent);
             card.Margin = new Thickness(0, 0, 8, 8);
             card.Click += (_, _) =>
             {
-                StylePresets.Apply(S, preset);
+                apply();
                 Changed();
                 SelectCard(grid, card, accent);
                 applied?.Invoke();
             };
             grid.Children.Add(card);
         }
+
+        foreach (var preset in StylePresets.All)
+            Add(PresetPreview(preset, 140, 38), Loc.T(preset.Name), ReferenceEquals(preset, current), () => StylePresets.Apply(S, preset));
+        if (withMine)
+            foreach (var style in S.MyStyles)
+                Add(SavedStylePreview(style, 140, 38), style.Name, ReferenceEquals(style, mine), () =>
+                {
+                    StyleCode.TryApply(style.Code, S);
+                    _lastStyle = style;
+                });
         return grid;
     }
 
@@ -809,6 +822,7 @@ public partial class SettingsWindow : Window
         fresh.StartWithWindows = S.StartWithWindows;
         fresh.CloseToTray = S.CloseToTray;
         fresh.Language = S.Language;
+        fresh.MyStyles = S.MyStyles; // ses styles enregistrés ne sont pas des réglages : on les garde
         _app.Store.Replace(fresh);
         _selected = null;
         RebuildAll();

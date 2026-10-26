@@ -68,6 +68,13 @@ internal static class StyleCode
         return Prefix + Convert.ToBase64String(output.ToArray()).TrimEnd('=').Replace('+', '-').Replace('/', '_');
     }
 
+    /// <summary>Vrai si le style actuel est exactement celui de ce code (ordre des modules indifférent).</summary>
+    public static bool Matches(AppSettings s, string code)
+    {
+        var copy = s.Clone();
+        return TryApply(code, copy) && ToJson(copy) == ToJson(s);
+    }
+
     /// <summary>Applique un code (« TBV1:… ») ou le contenu JSON d'un fichier de style. False s'il n'est pas reconnu.</summary>
     public static bool TryApply(string text, AppSettings s)
     {

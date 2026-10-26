@@ -30,7 +30,7 @@ drawn straight into the empty space on each side of your icons, in a dot-matrix 
 | **Waveform** | mirror, envelope or triggered oscilloscope |
 | **Loudness history** | LUFS over 15 s to 5 min against your target |
 | **Piano roll** | the notes actually played, octave included, on a 3–6 octave keyboard with scrolling history: dedicated two-resolution FFT, peaks accurate to a few cents, harmonics sieved out |
-| **XY oscilloscope** | goniometer or Lissajous drawn in phosphor that fades like a CRT |
+| **XY oscilloscope** | goniometer or Lissajous drawn in phosphor that fades like a CRT, plus "oscilloscope music" drawings (stars, hearts, little characters…) that change with the beat, in pairs, shaken by the sound |
 | **Raw data** | the samples as your sound card sees them, in scrolling hex or a bit matrix. Purely experimental |
 
 The *Layout* page shows your taskbar in miniature, modules to scale: click one to set its width, drag it
@@ -70,6 +70,8 @@ The window looks like Windows 11 Settings: a side menu (Home, Appearance, Layout
 every setting is a card with an icon and a one-line explanation. *Home* shows what is playing, the free
 space on the taskbar, hide / pause buttons, one-click styles and the modules currently shown.
 
+- **My styles**: save the current colours and effects under a name and get them back in one click
+  (Appearance and Home pages); the *⋯* menu updates, renames, copies or deletes a saved style.
 - **Share a style** as a short `TBV1:…` code (paste it on Discord) or a `.tbvstyle` file.
 - **Listen to one app only**: FL Studio without Discord, a game without your music, or a mic/line input.
 - **Global hotkey** (Ctrl + Alt + V by default) hides / shows the visualizers, even in games.

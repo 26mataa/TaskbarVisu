@@ -140,7 +140,7 @@ public partial class App : Application
                 _ => Language.French,
             });
         }
-        StartupManager.Sync(Settings.StartWithWindows);
+        if (!headless) StartupManager.Sync(Settings.StartWithWindows);
 
         Audio = new AudioCapture();
         int keyIndex = Array.FindIndex(e.Args, a => a.Equals("--test-key", StringComparison.OrdinalIgnoreCase));

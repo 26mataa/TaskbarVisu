@@ -22,7 +22,7 @@ posés dans les espaces libres à gauche et à droite des icônes, sans cadre.
 | **Historique de sonie** | Courbe LUFS sur 15 s à 5 min (barres LED ou courbe), ligne de cible |
 | **Accordeur** | 2 modes : note + justesse (±50 cents), tonalité (gamme) avec confiance et, pour un morceau modal, sa note centrale (« ◆F MIX ») ; mini-piano LED, notation C D E, Do Ré Mi ou Camelot ; en option, les tonalités précédentes du morceau (« <C <Aᵐ ») |
 | **Piano roll** | Notes réellement entendues, octave comprise, justes à quelques cents (analyse dédiée en deux résolutions), sur un clavier de 3 à 6 octaves ; leur historique défile au-dessus (couleur selon la hauteur ou l'intensité, clavier en bas ou en haut) |
-| **Oscilloscope XY** | Goniomètre (milieu / côtés) ou Lissajous (gauche / droite) tracé en phosphore qui s'éteint lentement, réticule gradué |
+| **Oscilloscope XY** | Goniomètre (milieu / côtés) ou Lissajous (gauche / droite) tracé en phosphore qui s'éteint lentement, réticule gradué ; dessins façon « musique d'oscilloscope » (étoiles, cœurs, petits personnages…) qui changent au rythme, en double, et tremblent avec le son |
 | **Données brutes** | Les échantillons tels que la carte son les voit : lignes hexadécimales qui défilent ou matrice de bits. Purement expérimental |
 
 Disposition par défaut : niveaux, spectrogramme et spectre à gauche ; imageur, accordeur et forme d'onde
@@ -137,6 +137,8 @@ la trace liste aussi les pics de chaque image (fréquence:amplitude:part non exp
 - Textes et repères : lavande, teintés par la palette, accentuation Windows ou couleur choisie au sélecteur.
 - Chaque module peut avoir ses propres couleurs : une autre palette, son propre dégradé ou une couleur unie.
 - Pas de fond : les modules se fondent dans la barre (fond écran LCD olive clair en option, pour le style LCD).
+- Mes styles : le style actuel (couleurs, effets, fond, couleurs des modules) enregistré sous un nom et réappliqué
+  en un clic depuis Apparence ou Accueil ; le menu « ⋯ » le met à jour, le renomme, copie son code ou le supprime.
 - Partager un style : code court `TBV1:…` (JSON compressé, à coller sur Discord) ou fichier `.tbvstyle`.
   Le style comprend palette, effets, fond et couleurs de chaque module, pas la disposition.
 
@@ -205,7 +207,7 @@ menu à gauche, et chaque réglage est une carte avec une icône et une phrase d
   source audio, langue, écran (principal, tous, ou un écran précis), plein écran, raccourci clavier,
   mises à jour, i/s, résolution FFT, économie d'énergie, dossier des réglages.
 - **Apparence** : préréglages en cartes (le style actif est entouré), couleurs (palette, animation des couleurs,
-  textes, clair / sombre), effets, partage de style replié.
+  textes, clair / sombre), effets, Mes styles (enregistrer le style actuel), partage de style replié.
 - **Disposition** : la barre des tâches en miniature, modules à l'échelle et place restante par zone.
   Un clic sur un module ouvre ses réglages (largeur de 60 à 400 px, décaler, changer de côté, retirer,
   options) ; on peut aussi le glisser. En dessous : ajout des modules masqués (+ Gauche / + Droite),

@@ -298,6 +298,20 @@ public partial class SettingsWindow
     {
         var preview = S.Clone();
         StylePresets.Apply(preview, preset);
+        return StylePreview(preview, width, height);
+    }
+
+    /// <summary>Aperçu d'un style enregistré par l'utilisateur.</summary>
+    private FrameworkElement SavedStylePreview(SavedStyle style, double width, double height)
+    {
+        var preview = S.Clone();
+        StyleCode.TryApply(style.Code, preview);
+        return StylePreview(preview, width, height);
+    }
+
+    /// <summary>Aperçu d'un style complet (réglages <paramref name="preview"/>, modifiables).</summary>
+    private FrameworkElement StylePreview(AppSettings preview, double width, double height)
+    {
         // Fond de l'aperçu = la barre des tâches (claire ou sombre), et l'encre qui va avec.
         bool light = preview.Theme switch { ThemeChoice.Light => true, ThemeChoice.Dark => false, _ => App.TaskbarIsLight };
         preview.Theme = light ? ThemeChoice.Light : ThemeChoice.Dark;
@@ -309,7 +323,7 @@ public partial class SettingsWindow
             Clip = new RectangleGeometry(new Rect(0, 0, width, height), 4, 4),
             SnapsToDevicePixels = true,
         };
-        if (preset.Background == BackgroundChoice.Lcd)
+        if (preview.Background == BackgroundChoice.Lcd)
             Place(canvas, new Rectangle { Width = width, Height = height, Fill = new SolidColorBrush(Color.FromArgb(0xF2, 0x9A, 0xA5, 0x7E)) }, 0, 0);
 
         // Barres du grave à l'aigu ; la police pixel donne des segments d'afficheur.
@@ -322,7 +336,7 @@ public partial class SettingsWindow
             var brush = new SolidColorBrush(Color.FromRgb(c.Red, c.Green, c.Blue));
             double barHeight = Math.Round(PreviewShape[i] * (floor - top));
             double x = Math.Round(left + i * (barWidth + gap));
-            if (preset.PixelFont)
+            if (preview.PixelFont)
             {
                 for (double y = floor - 2; y > floor - barHeight; y -= 3)
                     Place(canvas, new Rectangle { Width = Math.Max(1, Math.Round(barWidth)), Height = 2, Fill = brush }, x, y);
@@ -341,7 +355,7 @@ public partial class SettingsWindow
             Foreground = new SolidColorBrush(Color.FromRgb(ink.Red, ink.Green, ink.Blue)),
         }, left, 1);
 
-        if (preset.Scanlines)
+        if (preview.Scanlines)
             for (double y = 0; y < height; y += 2)
                 Place(canvas, new Rectangle { Width = width, Height = 1, Fill = new SolidColorBrush(Color.FromArgb(light ? (byte)0x18 : (byte)0x38, 0, 0, 0)) }, 0, y);
         return canvas;

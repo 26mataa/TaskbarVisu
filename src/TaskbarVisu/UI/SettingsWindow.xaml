@@ -51,7 +51,8 @@
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
                             <StackPanel IsItemsHost="True" Margin="8,76,8,8" />
-                            <ContentPresenter Grid.Column="1" ContentSource="SelectedContent" />
+                            <!-- Ce nom permet aux lecteurs d'écran (UI Automation) d'atteindre le contenu de la page ouverte. -->
+                            <ContentPresenter x:Name="PART_SelectedContentHost" Grid.Column="1" ContentSource="SelectedContent" />
                         </Grid>
                     </ControlTemplate>
                 </Setter.Value>

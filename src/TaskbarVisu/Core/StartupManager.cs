@@ -12,6 +12,9 @@ internal static class StartupManager
 
     public static void Sync(bool enabled)
     {
+        // Lancement de diagnostic sur une copie des réglages (TASKBARVISU_SETTINGS) : le démarrage de Windows
+        // doit rester celui de l'application installée, pas pointer vers la copie de test.
+        if (Environment.GetEnvironmentVariable("TASKBARVISU_SETTINGS") is { Length: > 0 }) return;
         try
         {
             using var key = Registry.CurrentUser.CreateSubKey(RunKey, writable: true);

@@ -355,7 +355,15 @@ internal static class Loc
 
             // --- Nouveaux modules
             new[] { "Oscilloscope XY", "XY oscilloscope", "Osciloscopio XY", "XY-Oszilloskop" },
-            new[] { "Le son tracé en points lumineux qui s'éteignent lentement, comme un écran cathodique. Mono = trait vertical, stéréo = nuage.", "The sound drawn as glowing dots that fade slowly, like a CRT screen. Mono = vertical line, stereo = cloud.", "El sonido trazado con puntos luminosos que se apagan lentamente, como una pantalla CRT. Mono = trazo vertical, estéreo = nube.", "Der Klang als leuchtende Punkte, die langsam verblassen, wie auf einem Röhrenbildschirm. Mono = senkrechte Linie, Stereo = Wolke." },
+            new[] { "Le son tracé en points lumineux qui s'éteignent lentement, comme un écran cathodique, avec des dessins qui changent au rythme. Mono = trait vertical, stéréo = nuage.", "The sound drawn as glowing dots that fade slowly, like a CRT screen, with drawings that change with the beat. Mono = vertical line, stereo = cloud.", "El sonido trazado con puntos luminosos que se apagan lentamente, como una pantalla CRT, con dibujos que cambian al ritmo. Mono = trazo vertical, estéreo = nube.", "Der Klang als leuchtende Punkte, die langsam verblassen, wie auf einem Röhrenbildschirm, mit Zeichnungen, die im Takt wechseln. Mono = senkrechte Linie, Stereo = Wolke." },
+            // --- 0.9.2 : dessins de l'oscilloscope XY
+            new[] { "Dessins", "Drawings", "Dibujos", "Zeichnungen" },
+            new[] { "Sur les temps forts", "On the beats", "En los golpes", "Auf den Beats" },
+            new[] { "En continu", "Continuously", "Siempre", "Durchgehend" },
+            new[] { "Le faisceau trace aussi des dessins (étoiles, cœurs, personnages…) qui changent au rythme de la musique.", "The beam also draws pictures (stars, hearts, characters…) that change with the music's beat.", "El haz también traza dibujos (estrellas, corazones, personajes…) que cambian al ritmo de la música.", "Der Strahl zeichnet auch Bilder (Sterne, Herzen, Figuren…), die im Takt der Musik wechseln." },
+            new[] { "Dessins en double", "Drawings in pairs", "Dibujos dobles", "Zeichnungen doppelt" },
+            new[] { "Le son fait trembler les dessins", "The sound makes the drawings shake", "El sonido hace temblar los dibujos", "Der Klang lässt die Zeichnungen zittern" },
+            new[] { "Rotation lente des dessins", "Slowly rotate the drawings", "Rotación lenta de los dibujos", "Zeichnungen langsam drehen" },
             new[] { "Tracé", "Plot", "Trazado", "Darstellung" },
             new[] { "Goniomètre (milieu / côtés)", "Goniometer (mid / side)", "Goniómetro (medio / lados)", "Goniometer (Mitte / Seite)" },
             new[] { "Lissajous (gauche / droite)", "Lissajous (left / right)", "Lissajous (izquierda / derecha)", "Lissajous (links / rechts)" },
@@ -584,6 +592,24 @@ internal static class Loc
             new[] { "Les réglages de chaque visualiseur. Cliquez sur un module pour les voir ; tout s'applique tout de suite.", "Each visualizer's settings. Click a module to see them; everything applies right away.", "Los ajustes de cada visualizador. Haz clic en un módulo para verlos; todo se aplica al instante.", "Die Einstellungen jeder Visualisierung. Klicke auf ein Modul, um sie zu sehen; alles wirkt sofort." },
             new[] { "Aucun module affiché : ajoutez-en depuis la page Disposition.", "No module shown: add some from the Layout page.", "Ningún módulo visible: añade alguno desde la página Disposición.", "Kein Modul angezeigt: Füge welche auf der Seite Anordnung hinzu." },
             new[] { "La barre reste vide : vous ajoutez vos modules un par un, le guide se termine sur l'onglet Disposition.", "The taskbar stays empty: you add your modules one by one, and the guide ends on the Layout page.", "La barra queda vacía: añades tus módulos uno a uno y la guía termina en la página Disposición.", "Die Leiste bleibt leer: Du fügst deine Module einzeln hinzu, die Einführung endet auf der Seite Anordnung." },
+            // --- 0.9.2 : Mes styles
+            new[] { "Mes styles", "My styles", "Mis estilos", "Meine Stile" },
+            new[] { "Réglez les couleurs et les effets à votre goût, puis enregistrez-les ici pour les retrouver en un clic.", "Set the colours and effects the way you like, then save them here to get them back in one click.", "Ajusta los colores y efectos a tu gusto y guárdalos aquí para recuperarlos con un clic.", "Stelle Farben und Effekte nach deinem Geschmack ein und speichere sie hier, um sie mit einem Klick wiederzubekommen." },
+            new[] { "Nom du style", "Style name", "Nombre del estilo", "Name des Stils" },
+            new[] { "Enregistrer", "Save", "Guardar", "Speichern" },
+            new[] { "Annuler", "Cancel", "Cancelar", "Abbrechen" },
+            new[] { "Style renommé : « {0} ».", "Style renamed: \"{0}\".", "Estilo renombrado: «{0}».", "Stil umbenannt: „{0}“." },
+            new[] { "« {0} » mis à jour avec le style actuel.", "\"{0}\" updated with the current style.", "«{0}» actualizado con el estilo actual.", "„{0}“ mit dem aktuellen Stil aktualisiert." },
+            new[] { "Style « {0} » enregistré : il est aussi sur la page Accueil.", "Style \"{0}\" saved: it is on the Home page too.", "Estilo «{0}» guardado: también está en la página Inicio.", "Stil „{0}“ gespeichert: Er ist auch auf der Startseite." },
+            new[] { "Enregistrer le style actuel", "Save the current style", "Guardar el estilo actual", "Aktuellen Stil speichern" },
+            new[] { "Enregistrer ce style", "Save this style", "Guardar este estilo", "Diesen Stil speichern" },
+            new[] { "{0} styles au maximum : supprimez-en un pour en enregistrer un autre.", "{0} styles at most: delete one to save another.", "{0} estilos como máximo: elimina uno para guardar otro.", "Höchstens {0} Stile: Lösche einen, um einen anderen zu speichern." },
+            new[] { "Mettre à jour avec le style actuel", "Update with the current style", "Actualizar con el estilo actual", "Mit dem aktuellen Stil aktualisieren" },
+            new[] { "Renommer…", "Rename…", "Renombrar…", "Umbenennen…" },
+            new[] { "Copier le code", "Copy the code", "Copiar el código", "Code kopieren" },
+            new[] { "Supprimer", "Delete", "Eliminar", "Löschen" },
+            new[] { "Supprimer le style « {0} » ?", "Delete the style \"{0}\"?", "¿Eliminar el estilo «{0}»?", "Den Stil „{0}“ löschen?" },
+            new[] { "Mon style {0}", "My style {0}", "Mi estilo {0}", "Mein Stil {0}" },
         };
 
         var table = new Dictionary<string, string[]>(StringComparer.Ordinal);

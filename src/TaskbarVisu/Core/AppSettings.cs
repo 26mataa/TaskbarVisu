@@ -84,10 +84,18 @@ internal sealed class ModuleConfig
     }
 }
 
+/// <summary>Un style enregistré par l'utilisateur (« Mes styles ») : son nom et son code (<see cref="StyleCode"/>).</summary>
+internal sealed class SavedStyle
+{
+    public string Name { get; set; } = string.Empty;
+    public string Code { get; set; } = string.Empty;
+}
+
 internal sealed class AppSettings
 {
     public const int CurrentVersion = 6;
     public const int MaxModuleWidth = 400;
+    public const int MaxStyles = 24;
 
     public int Version { get; set; } = CurrentVersion;
 
@@ -125,6 +133,8 @@ internal sealed class AppSettings
     public PaletteChoice Palette { get; set; } = PaletteChoice.Magma;
     /// <summary>Palette « Personnalisée » : dégradé de 2 à 8 couleurs.</summary>
     public List<ColorStop> Gradient { get; set; } = Gradients.Default();
+    /// <summary>Styles enregistrés par l'utilisateur, réappliqués en un clic (page Apparence).</summary>
+    public List<SavedStyle> MyStyles { get; set; } = new();
     // Anciens réglages (v0.8) : deux couleurs grave / aigu, converties en dégradé par MigrateTo5.
     public string PaletteLow { get; set; } = "#3A0CA3";
     public string PaletteHigh { get; set; } = "#FFD60A";
@@ -266,6 +276,10 @@ internal sealed class AppSettings
         if (FftSize is not (2048 or 4096 or 8192)) FftSize = 4096;
         Gradient = Gradients.Clean(Gradient) ?? Gradients.Default();
         foreach (var m in AllModules) m.Gradient = Gradients.Clean(m.Gradient);
+        MyStyles = (MyStyles ?? new())
+            .Where(x => x is not null && !string.IsNullOrWhiteSpace(x.Code))
+            .Select(x => new SavedStyle { Name = (x.Name ?? string.Empty).Trim(), Code = x.Code.Trim() })
+            .Take(MaxStyles).ToList();
     }
 
     /// <summary>v0.2 → v0.3 : les couleurs des modules passent par le système commun « Couleurs ».</summary>
