@@ -71,7 +71,7 @@ public partial class SettingsWindow
     {
         WelcomeRoot.Children.Clear();
         _welcomeZones = null;
-        bool light = Theme.SystemUsesLightTheme();
+        bool light = App.UiIsLight;
         var accent = AccentBrush(light);
         var (tag, title, subtitle) = _welcomeStep switch
         {
@@ -192,7 +192,7 @@ public partial class SettingsWindow
     /// <summary>La barre en miniature, à l'échelle : zones libres aux couleurs de la palette, qui clignotent avec la vraie.</summary>
     private FrameworkElement ZonesMiniature()
     {
-        bool light = Theme.SystemUsesLightTheme();
+        bool light = App.TaskbarIsLight;
         var ink = light ? Color.FromRgb(0x20, 0x20, 0x28) : Colors.White;
         var canvas = new Canvas { Height = 44, ClipToBounds = true };
         void Draw()
@@ -298,8 +298,10 @@ public partial class SettingsWindow
     {
         var preview = S.Clone();
         StylePresets.Apply(preview, preset);
+        // Fond de l'aperçu = la barre des tâches (claire ou sombre), et l'encre qui va avec.
+        bool light = preview.Theme switch { ThemeChoice.Light => true, ThemeChoice.Dark => false, _ => App.TaskbarIsLight };
+        preview.Theme = light ? ThemeChoice.Light : ThemeChoice.Dark;
         var theme = Theme.Build(preview);
-        bool light = Theme.SystemUsesLightTheme();
         var canvas = new Canvas
         {
             Width = width, Height = height,
@@ -341,7 +343,7 @@ public partial class SettingsWindow
 
         if (preset.Scanlines)
             for (double y = 0; y < height; y += 2)
-                Place(canvas, new Rectangle { Width = width, Height = 1, Fill = new SolidColorBrush(Color.FromArgb(0x38, 0, 0, 0)) }, 0, y);
+                Place(canvas, new Rectangle { Width = width, Height = 1, Fill = new SolidColorBrush(Color.FromArgb(light ? (byte)0x18 : (byte)0x38, 0, 0, 0)) }, 0, y);
         return canvas;
     }
 
@@ -403,7 +405,7 @@ public partial class SettingsWindow
     /// <summary>Pictogramme de la barre : modules à gauche, icônes au milieu, modules à droite (emplacements vides sinon).</summary>
     private FrameworkElement PackSchematic(ModulePack? pack)
     {
-        bool light = Theme.SystemUsesLightTheme();
+        bool light = App.TaskbarIsLight;
         var ink = light ? Color.FromRgb(0x20, 0x20, 0x28) : Colors.White;
         var row = new Grid { Height = 26 };
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -421,8 +423,8 @@ public partial class SettingsWindow
                 side.Children.Add(new Border
                 {
                     Width = width, Height = 18, Margin = new Thickness(0, 0, 3, 0), CornerRadius = new CornerRadius(3),
-                    Background = new SolidColorBrush(Color.FromArgb(0xD8, 0x14, 0x14, 0x1A)),
-                    BorderBrush = new SolidColorBrush(Color.FromArgb(0x40, 0xFF, 0xFF, 0xFF)), BorderThickness = new Thickness(1),
+                    Background = ChipFill(),
+                    BorderBrush = ChipEdge(), BorderThickness = new Thickness(1),
                     ToolTip = ModuleCatalog.Find(id) is { } info ? Loc.T(info.Name) : null,
                     Child = new Border { Height = 3, VerticalAlignment = VerticalAlignment.Bottom, Background = PaletteBrush(palette) },
                 });

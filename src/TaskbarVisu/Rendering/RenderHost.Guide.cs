@@ -191,9 +191,18 @@ internal sealed partial class RenderHost
         int column = _pointerTip / p * p;
         // Distance à la barre de chaque rangée de la flèche (0 = la pointe).
         float Y(int row) => _pointerUp ? bob + row * p : h - bob - (row + 1) * p;
+        static int Half(int row) => row < 0 ? 0 : row < 6 ? row : 1; // pointe triangulaire puis tige
+
+        // Contour sombre d'un pixel de police : la flèche reste visible sur un fond d'écran clair.
+        _guidePaint.Color = new SKColor(0x08, 0x08, 0x0C, 0xF0);
+        for (int row = -1; row <= ArrowRows; row++)
+        {
+            int half = Half(Math.Min(row, ArrowRows - 1)) + (row is >= 0 and < ArrowRows ? 1 : 0);
+            canvas.DrawRect(column - half * p, Y(row), (2 * half + 1) * p, p, _guidePaint);
+        }
         for (int row = 0; row < ArrowRows; row++)
         {
-            int half = row < 6 ? row : 1; // pointe triangulaire puis tige
+            int half = Half(row);
             _guidePaint.Color = theme.Spectral(0.95f - 0.6f * row / ArrowRows);
             canvas.DrawRect(column - half * p, Y(row), (2 * half + 1) * p, p, _guidePaint);
         }

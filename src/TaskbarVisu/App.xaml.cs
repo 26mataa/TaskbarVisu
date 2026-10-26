@@ -14,6 +14,15 @@ namespace TaskbarVisu;
 public partial class App : Application
 {
     private Mutex? _singleInstance;
+
+    /// <summary>Thème de la fenêtre forcé par --ui-theme (diagnostic) : clair, sombre, ou null pour suivre Windows.</summary>
+    private static bool? _uiThemeOverride;
+
+    /// <summary>La fenêtre de réglages est-elle en thème clair ? (suit « AppsUseLightTheme », comme le thème Fluent.)</summary>
+    internal static bool UiIsLight => _uiThemeOverride ?? Rendering.Theme.AppsUseLightTheme();
+
+    /// <summary>La barre des tâches est-elle claire ? (« SystemUsesLightTheme » ; les aperçus de la barre la suivent.)</summary>
+    internal static bool TaskbarIsLight => _uiThemeOverride ?? Rendering.Theme.SystemUsesLightTheme();
     private EventWaitHandle? _showSignal;
     private RegisteredWaitHandle? _showSignalWait;
     private TrayIcon? _tray;
@@ -213,6 +222,14 @@ public partial class App : Application
             timer.Start();
         }
 
+        // Diagnostic : --ui-theme light | dark force le thème de la fenêtre (captures sans toucher à Windows).
+        int uiThemeIndex = Array.FindIndex(e.Args, a => a.Equals("--ui-theme", StringComparison.OrdinalIgnoreCase));
+        if (uiThemeIndex >= 0 && uiThemeIndex + 1 < e.Args.Length)
+        {
+            _uiThemeOverride = e.Args[uiThemeIndex + 1].Equals("light", StringComparison.OrdinalIgnoreCase);
+            ThemeMode = _uiThemeOverride.Value ? ThemeMode.Light : ThemeMode.Dark;
+        }
+
         if (e.Args.Any(a => a.Equals("--selftest-ui", StringComparison.OrdinalIgnoreCase)))
         {
             RunUiSelfTest();
@@ -330,7 +347,8 @@ public partial class App : Application
         {
             // Le fond Mica n'est pas capturable : on le remplace par un aplat.
             dc.DrawRectangle(window.Background is { } bg && bg != System.Windows.Media.Brushes.Transparent
-                ? bg : new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(32, 32, 32)), null,
+                ? bg : new System.Windows.Media.SolidColorBrush(UiIsLight
+                    ? System.Windows.Media.Color.FromRgb(243, 243, 243) : System.Windows.Media.Color.FromRgb(32, 32, 32)), null,
                 new Rect(0, 0, w, h));
             dc.DrawRectangle(new System.Windows.Media.VisualBrush(root), null, new Rect(0, 0, w, h));
         }

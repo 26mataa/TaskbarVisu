@@ -67,7 +67,7 @@ public partial class SettingsWindow
 
         _mini = new Canvas { Height = MiniHeight, ClipToBounds = true, Background = Brushes.Transparent };
         _captions = new Canvas { Height = 18, ClipToBounds = true, Margin = new Thickness(0, 4, 0, 0) };
-        bool light = Theme.SystemUsesLightTheme();
+        bool light = App.TaskbarIsLight;
         var frame = new Border
         {
             CornerRadius = new CornerRadius(8),
@@ -167,7 +167,7 @@ public partial class SettingsWindow
         if (width < 10) return;
         double k = width / Math.Max(1, bar.Taskbar.Width);
         double X(int px) => (px - bar.Taskbar.Left) * k;
-        bool light = Theme.SystemUsesLightTheme();
+        bool light = App.TaskbarIsLight;
         var ink = light ? Color.FromRgb(0x20, 0x20, 0x28) : Colors.White;
 
         // Icônes de la barre (Démarrer en premier) et zone de notification, juste pour se repérer.
@@ -256,7 +256,7 @@ public partial class SettingsWindow
         {
             Text = Loc.T(info.Name).ToUpperInvariant(),
             FontFamily = MonoFont, FontSize = 10,
-            Foreground = new SolidColorBrush(Color.FromArgb(0xE0, 0xFF, 0xFF, 0xFF)),
+            Foreground = ChipText(),
             TextTrimming = TextTrimming.CharacterEllipsis,
             Margin = new Thickness(5, 0, 4, 2),
             VerticalAlignment = VerticalAlignment.Center,
@@ -265,9 +265,9 @@ public partial class SettingsWindow
         {
             Width = width, Height = MiniHeight - 14,
             CornerRadius = new CornerRadius(4),
-            Background = new SolidColorBrush(Color.FromArgb(0xD8, 0x14, 0x14, 0x1A)),
+            Background = ChipFill(),
             BorderThickness = new Thickness(selected ? 2 : 1),
-            BorderBrush = selected ? accent : new SolidColorBrush(Color.FromArgb(0x40, 0xFF, 0xFF, 0xFF)),
+            BorderBrush = selected ? accent : ChipEdge(),
             Cursor = Cursors.Hand,
             ToolTip = Loc.T(info.Name),
             Child = new Grid { Children = { name, strip } },
@@ -319,7 +319,7 @@ public partial class SettingsWindow
             : (_zones[zone].Zone.X0 - bar.Taskbar.Left) * k + 2;
         if (_caret is null)
         {
-            _caret = new Rectangle { Width = 2, Height = MiniHeight - 8, Fill = AccentBrush(Theme.SystemUsesLightTheme()), IsHitTestVisible = false };
+            _caret = new Rectangle { Width = 2, Height = MiniHeight - 8, Fill = AccentBrush(App.UiIsLight), IsHitTestVisible = false };
             Canvas.SetTop(_caret, 4);
             _mini.Children.Add(_caret);
         }
@@ -457,7 +457,7 @@ public partial class SettingsWindow
 
         // Liseré d'accentuation : c'est le module entouré sur la miniature.
         var frame = CardFrame(body, new Thickness(16, 12, 16, 6));
-        frame.BorderBrush = AccentBrush(Theme.SystemUsesLightTheme());
+        frame.BorderBrush = AccentBrush(App.UiIsLight);
         p.Children.Add(frame);
     }
 
@@ -582,6 +582,11 @@ public partial class SettingsWindow
         var c = Theme.AccentColor(light);
         return new SolidColorBrush(c is { } a ? Color.FromRgb(a.Red, a.Green, a.Blue) : Color.FromRgb(0x4C, 0xC2, 0xFF));
     }
+
+    // Modules dessinés sur une barre en miniature : sombres sur une barre sombre, clairs sur une barre claire.
+    private static Brush ChipFill() => new SolidColorBrush(App.TaskbarIsLight ? Color.FromArgb(0xF0, 0xFF, 0xFF, 0xFF) : Color.FromArgb(0xD8, 0x14, 0x14, 0x1A));
+    private static Brush ChipEdge() => new SolidColorBrush(App.TaskbarIsLight ? Color.FromArgb(0x38, 0, 0, 0) : Color.FromArgb(0x40, 0xFF, 0xFF, 0xFF));
+    private static Brush ChipText() => new SolidColorBrush(App.TaskbarIsLight ? Color.FromRgb(0x20, 0x20, 0x28) : Color.FromArgb(0xE0, 0xFF, 0xFF, 0xFF));
 
     private static Color ToColor(string hex) =>
         Gradients.Parse(hex) is { } c ? Color.FromRgb((byte)c.R, (byte)c.G, (byte)c.B) : Colors.White;

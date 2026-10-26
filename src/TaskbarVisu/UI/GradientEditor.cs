@@ -164,7 +164,7 @@ internal sealed class GradientEditor : StackPanel
 
         _canvas.Children.Clear();
         double width = Math.Max(1, _canvas.ActualWidth - HandleWidth);
-        bool light = Rendering.Theme.AppsUseLightTheme();
+        bool light = App.UiIsLight;
         foreach (var stop in _stops)
         {
             bool selected = ReferenceEquals(stop, _selected);

@@ -31,7 +31,6 @@ drawn straight into the empty space on each side of your icons, in a dot-matrix 
 | **Loudness history** | LUFS over 15 s to 5 min against your target |
 | **Piano roll** | the notes actually played, octave included, on a 3–6 octave keyboard with scrolling history: dedicated two-resolution FFT, peaks accurate to a few cents, harmonics sieved out |
 | **XY oscilloscope** | goniometer or Lissajous drawn in phosphor that fades like a CRT |
-| **Aero oscilloscope** | the waveform in a glossy Frutiger Aero glass bubble: bubbles rise with the volume, notes ♪, sparkles and drops burst out on the beats (aqua, apple green or palette colours) |
 | **Raw data** | the samples as your sound card sees them, in scrolling hex or a bit matrix. Purely experimental |
 
 The *Layout* page shows your taskbar in miniature, modules to scale: click one to set its width, drag it

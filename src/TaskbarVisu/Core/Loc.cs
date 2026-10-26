@@ -584,22 +584,6 @@ internal static class Loc
             new[] { "Les réglages de chaque visualiseur. Cliquez sur un module pour les voir ; tout s'applique tout de suite.", "Each visualizer's settings. Click a module to see them; everything applies right away.", "Los ajustes de cada visualizador. Haz clic en un módulo para verlos; todo se aplica al instante.", "Die Einstellungen jeder Visualisierung. Klicke auf ein Modul, um sie zu sehen; alles wirkt sofort." },
             new[] { "Aucun module affiché : ajoutez-en depuis la page Disposition.", "No module shown: add some from the Layout page.", "Ningún módulo visible: añade alguno desde la página Disposición.", "Kein Modul angezeigt: Füge welche auf der Seite Anordnung hinzu." },
             new[] { "La barre reste vide : vous ajoutez vos modules un par un, le guide se termine sur l'onglet Disposition.", "The taskbar stays empty: you add your modules one by one, and the guide ends on the Layout page.", "La barra queda vacía: añades tus módulos uno a uno y la guía termina en la página Disposición.", "Die Leiste bleibt leer: Du fügst deine Module einzeln hinzu, die Einführung endet auf der Seite Anordnung." },
-
-            // Module Oscilloscope Aero.
-            new[] { "Oscilloscope Aero", "Aero oscilloscope", "Osciloscopio Aero", "Aero-Oszilloskop" },
-            new[] { "L'onde dans une bulle de verre brillante, façon Frutiger Aero : des bulles montent avec le volume, des notes ♪, étincelles et gouttes jaillissent sur les temps forts.", "The waveform in a glossy glass bubble, Frutiger Aero style: bubbles rise with the volume, and notes ♪, sparkles and drops burst out on the beats.", "La onda en una burbuja de cristal brillante, estilo Frutiger Aero: las burbujas suben con el volumen y notas ♪, destellos y gotas saltan en los golpes fuertes.", "Die Wellenform in einer glänzenden Glasblase im Frutiger-Aero-Stil: Blasen steigen mit der Lautstärke, Noten ♪, Funken und Tropfen springen auf den Beats." },
-            new[] { "Ambiance", "Mood", "Ambiente", "Stimmung" },
-            new[] { "Aqua (ciel et eau)", "Aqua (sky and water)", "Aqua (cielo y agua)", "Aqua (Himmel und Wasser)" },
-            new[] { "Vert pomme", "Apple green", "Verde manzana", "Apfelgrün" },
-            new[] { "Couleurs de la palette", "Palette colours", "Colores de la paleta", "Farben der Palette" },
-            new[] { "Bulles", "Bubbles", "Burbujas", "Blasen" },
-            new[] { "0 = pas de bulles.", "0 = no bubbles.", "0 = sin burbujas.", "0 = keine Blasen." },
-            new[] { "Symboles sur les temps forts (♪, étincelles, gouttes)", "Symbols on the beats (♪, sparkles, drops)", "Símbolos en los golpes fuertes (♪, destellos, gotas)", "Symbole auf den Beats (♪, Funken, Tropfen)" },
-            new[] { "Bulle de verre brillante", "Glossy glass bubble", "Burbuja de cristal brillante", "Glänzende Glasblase" },
-            new[] { "Sans la bulle : seulement la trace, les bulles et les symboles, posés sur la barre.", "Without the bubble: only the trace, bubbles and symbols, right on the taskbar.", "Sin la burbuja: solo la traza, las burbujas y los símbolos, sobre la barra.", "Ohne Blase: nur Kurve, Blasen und Symbole direkt auf der Leiste." },
-            new[] { "Reflet qui balaie la bulle sur les coups forts", "Shine sweeping across the bubble on strong hits", "Reflejo que barre la burbuja en los golpes fuertes", "Glanz, der bei starken Schlägen über die Blase streicht" },
-            new[] { "Fenêtre de temps", "Time window", "Ventana de tiempo", "Zeitfenster" },
-            new[] { "Plus court = l'onde est plus étirée.", "Shorter = the wave is stretched wider.", "Más corto = la onda se estira más.", "Kürzer = die Welle wird breiter gezogen." },
         };
 
         var table = new Dictionary<string, string[]>(StringComparer.Ordinal);

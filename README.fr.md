@@ -23,11 +23,10 @@ posés dans les espaces libres à gauche et à droite des icônes, sans cadre.
 | **Accordeur** | 2 modes : note + justesse (±50 cents), tonalité (gamme) avec confiance et, pour un morceau modal, sa note centrale (« ◆F MIX ») ; mini-piano LED, notation C D E, Do Ré Mi ou Camelot ; en option, les tonalités précédentes du morceau (« <C <Aᵐ ») |
 | **Piano roll** | Notes réellement entendues, octave comprise, justes à quelques cents (analyse dédiée en deux résolutions), sur un clavier de 3 à 6 octaves ; leur historique défile au-dessus (couleur selon la hauteur ou l'intensité, clavier en bas ou en haut) |
 | **Oscilloscope XY** | Goniomètre (milieu / côtés) ou Lissajous (gauche / droite) tracé en phosphore qui s'éteint lentement, réticule gradué |
-| **Oscilloscope Aero** | L'onde dans une bulle de verre brillante façon Frutiger Aero : des bulles montent avec le volume, des notes ♪, étincelles et gouttes jaillissent sur les temps forts (aqua, vert pomme ou couleurs de la palette) |
 | **Données brutes** | Les échantillons tels que la carte son les voit : lignes hexadécimales qui défilent ou matrice de bits. Purement expérimental |
 
 Disposition par défaut : niveaux, spectrogramme et spectre à gauche ; imageur, accordeur et forme d'onde
-à droite. VU-mètre, historique de sonie, piano roll, oscilloscopes XY et Aero, données brutes
+à droite. VU-mètre, historique de sonie, piano roll, oscilloscope XY et données brutes
 sont disponibles mais masqués (page Disposition). Au lancement, chaque module fait un court
 *self-test* (balayage LED, « OK ») avant de s'allumer ; désactivable dans Général.
 

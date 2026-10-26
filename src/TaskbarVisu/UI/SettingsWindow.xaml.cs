@@ -38,8 +38,12 @@ public partial class SettingsWindow : Window
         _statusTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         _statusTimer.Tick += (_, _) => UpdateStatus();
         _statusTimer.Start();
+        // Windows passe en clair ou en sombre (ou change de couleur d'accentuation) : les aperçus et liserés suivent.
+        _themeKey = ThemeKey();
+        Microsoft.Win32.SystemEvents.UserPreferenceChanged += OnUserPreferenceChanged;
         Closed += (_, _) =>
         {
+            Microsoft.Win32.SystemEvents.UserPreferenceChanged -= OnUserPreferenceChanged;
             _statusTimer.Stop();
             if (_welcomeStep >= 0) _app.ShowGuideMark(Rendering.GuideMark.None);
             if (_updateHandler is not null) _app.UpdateStateChanged -= _updateHandler;
@@ -48,6 +52,22 @@ public partial class SettingsWindow : Window
     }
 
     private void Changed() => _app.OnSettingsChanged();
+
+    private string _themeKey = string.Empty;
+
+    private static string ThemeKey() =>
+        $"{App.UiIsLight}/{App.TaskbarIsLight}/{Rendering.Theme.AccentColor(App.UiIsLight)}";
+
+    private void OnUserPreferenceChanged(object? sender, Microsoft.Win32.UserPreferenceChangedEventArgs e) =>
+        Dispatcher.BeginInvoke(() =>
+        {
+            // L'événement arrive pour beaucoup d'autres réglages : on ne reconstruit que si le thème a changé.
+            var key = ThemeKey();
+            if (key == _themeKey) return;
+            _themeKey = key;
+            RebuildAll();
+            if (_welcomeStep >= 0) BuildWelcome();
+        }, DispatcherPriority.Background);
 
     /// <summary>(Re)construit tout le contenu de la fenêtre dans la langue courante.</summary>
     private void RebuildAll()
@@ -436,7 +456,7 @@ public partial class SettingsWindow : Window
     /// </summary>
     private System.Windows.Controls.Primitives.UniformGrid PresetGrid(int columns, Action? applied)
     {
-        var accent = AccentBrush(Rendering.Theme.SystemUsesLightTheme());
+        var accent = AccentBrush(App.UiIsLight);
         var grid = new System.Windows.Controls.Primitives.UniformGrid { Columns = columns, Margin = new Thickness(0, 0, -8, 0) };
         var current = StylePresets.Current(S);
         foreach (var preset in StylePresets.All)

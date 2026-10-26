@@ -186,7 +186,7 @@ internal sealed class AppSettings
         foreach (var (id, zone) in new[]
                  {
                      ("vu", Left), ("xyscope", Left),
-                     ("loudness", Right), ("pianoroll", Right), ("rawdata", Right), ("aero", Right),
+                     ("loudness", Right), ("pianoroll", Right), ("rawdata", Right),
                  })
         {
             var hidden = DefaultLayoutConfig(id, previous);

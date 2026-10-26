@@ -119,7 +119,7 @@ internal sealed class ColorPickerButton : StackPanel
         _preview = new Border { Width = 34, Height = 26, CornerRadius = new CornerRadius(4), Margin = new Thickness(10, 0, 0, 0) };
         var hexRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 10, 0, 0), Children = { _hex, _preview } };
 
-        bool light = Rendering.Theme.AppsUseLightTheme();
+        bool light = App.UiIsLight;
         var content = new StackPanel { Children = { _svCanvas, new Border { Height = 10 }, _hueCanvas, presets, hexRow } };
         _popup = new Popup
         {

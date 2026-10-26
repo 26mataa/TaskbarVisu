@@ -224,23 +224,6 @@ internal static class ModuleCatalog
             },
             () => new XyScopeModule()),
 
-        new("aero", "Oscilloscope Aero",
-            "L'onde dans une bulle de verre brillante, façon Frutiger Aero : des bulles montent avec le volume, " +
-            "des notes ♪, étincelles et gouttes jaillissent sur les temps forts.",
-            DefaultModuleWidth, 60,
-            new[]
-            {
-                Choice("ambiance", "Ambiance", 0, new[] { "Aqua (ciel et eau)", "Vert pomme", "Couleurs de la palette" }),
-                Slider("bubbles", "Bulles", 1, 0, 2, 0.1, "×", help: "0 = pas de bulles."),
-                Toggle("symbols", "Symboles sur les temps forts (♪, étincelles, gouttes)", true),
-                Toggle("glass", "Bulle de verre brillante", true, advanced: true,
-                    help: "Sans la bulle : seulement la trace, les bulles et les symboles, posés sur la barre."),
-                Toggle("shine", "Reflet qui balaie la bulle sur les coups forts", true, advanced: true),
-                Slider("window", "Fenêtre de temps", 20, 5, 60, 1, "ms", advanced: true,
-                    help: "Plus court = l'onde est plus étirée."),
-            },
-            () => new AeroScopeModule()),
-
         new("rawdata", "Données brutes",
             "L'audio tel que la carte son le voit : échantillons en hexadécimal ou en matrice de bits. Purement expérimental.",
             DefaultModuleWidth, 60,
