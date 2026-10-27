@@ -355,15 +355,7 @@ internal static class Loc
 
             // --- Nouveaux modules
             new[] { "Oscilloscope XY", "XY oscilloscope", "Osciloscopio XY", "XY-Oszilloskop" },
-            new[] { "Le son tracé en points lumineux qui s'éteignent lentement, comme un écran cathodique, et qui se change par moments en dessin. Mono = trait vertical, stéréo = nuage.", "The sound drawn as glowing dots that fade slowly, like a CRT screen, now and then turning into a drawing. Mono = vertical line, stereo = cloud.", "El sonido trazado con puntos luminosos que se apagan lentamente, como una pantalla CRT, y que a ratos se convierte en un dibujo. Mono = trazo vertical, estéreo = nube.", "Der Klang als leuchtende Punkte, die langsam verblassen, wie auf einem Röhrenbildschirm, und die sich ab und zu in eine Zeichnung verwandeln. Mono = senkrechte Linie, Stereo = Wolke." },
-            // --- 0.9.2 : dessins de l'oscilloscope XY
-            new[] { "Dessins", "Drawings", "Dibujos", "Zeichnungen" },
-            new[] { "De temps en temps", "Now and then", "De vez en cuando", "Ab und zu" },
-            new[] { "Souvent", "Often", "A menudo", "Oft" },
-            new[] { "Par moments, le tracé du son se change en dessin (étoile, cœur, personnage…) qui suit la stéréo, puis redevient le son.", "Now and then the sound trace turns into a drawing (star, heart, character…) that follows the stereo image, then back into the sound.", "A ratos, el trazo del sonido se convierte en un dibujo (estrella, corazón, personaje…) que sigue el estéreo y luego vuelve a ser el sonido.", "Ab und zu verwandelt sich die Klangspur in eine Zeichnung (Stern, Herz, Figur…), die dem Stereobild folgt, und dann wieder in den Klang." },
-            new[] { "Le son fait trembler les dessins", "The sound makes the drawings shake", "El sonido hace temblar los dibujos", "Der Klang lässt die Zeichnungen zittern" },
-            new[] { "Feux d'artifice", "Fireworks", "Fuegos artificiales", "Feuerwerk" },
-            new[] { "Quand la stéréo s'emballe, les dessins se déforment, envahissent le module et explosent en étincelles.", "When the stereo goes wild, the drawings warp, fill the module and burst into sparks.", "Cuando el estéreo se desata, los dibujos se deforman, llenan el módulo y estallan en chispas.", "Wenn das Stereobild aufdreht, verformen sich die Zeichnungen, füllen das Modul und zerspringen in Funken." },
+            new[] { "Le son tracé en points lumineux qui s'éteignent lentement, comme un écran cathodique. Mono = trait vertical, stéréo = nuage.", "The sound drawn as glowing dots that fade slowly, like a CRT screen. Mono = vertical line, stereo = cloud.", "El sonido trazado con puntos luminosos que se apagan lentamente, como una pantalla CRT. Mono = trazo vertical, estéreo = nube.", "Der Klang als leuchtende Punkte, die langsam verblassen, wie auf einem Röhrenbildschirm. Mono = senkrechte Linie, Stereo = Wolke." },
             new[] { "Tracé", "Plot", "Trazado", "Darstellung" },
             new[] { "Goniomètre (milieu / côtés)", "Goniometer (mid / side)", "Goniómetro (medio / lados)", "Goniometer (Mitte / Seite)" },
             new[] { "Lissajous (gauche / droite)", "Lissajous (left / right)", "Lissajous (izquierda / derecha)", "Lissajous (links / rechts)" },
