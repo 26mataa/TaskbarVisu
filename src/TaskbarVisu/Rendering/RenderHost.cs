@@ -211,13 +211,24 @@ internal sealed partial class RenderHost : IDisposable
             double interval = 1.0 / Math.Max(15, _settings.Fps);
             // En mode diagnostic on calcule les images même masqué (les fenêtres restent cachées).
             bool active = _visible || DumpDirectory is not null;
-            if (active)
+            SyncPreviews();
+            // Aperçus de la fenêtre de réglages : le son est analysé même si la barre est masquée.
+            if (active || Previewing)
             {
                 if (!_wasActive) _analyzer.Resync();
                 long t0 = Mark();
                 _analyzer.Process(dt);
                 Profile("analyse", t0);
                 AnimateThemes(now);
+                if (Previewing)
+                {
+                    UpdatePreviews(dt, now);
+                    interval = Math.Min(interval, 1.0 / 30);
+                }
+            }
+            if (active)
+            {
+                long t0;
                 bool allIdle = true;
                 foreach (var zone in _zones)
                 {
@@ -238,9 +249,9 @@ internal sealed partial class RenderHost : IDisposable
                     _idlePresented = idle;
                     _profileFrames++;
                 }
-                if (idle) interval = 0.1; // Silence complet et affichage figé : on ne redessine plus.
+                if (idle && !Previewing) interval = 0.1; // Silence complet et affichage figé : on ne redessine plus.
             }
-            else
+            else if (!Previewing)
             {
                 interval = 0.1;
             }
@@ -253,7 +264,7 @@ internal sealed partial class RenderHost : IDisposable
             // Diagnostic : trois images de l'animation d'allumage (balayage, retour, fondu).
             if (DumpDirectory is not null && _bootShots < BootShotTimes.Length && BootTime >= BootShotTimes[_bootShots])
                 SaveImages(DumpDirectory, $"boot{++_bootShots}-");
-            _wasActive = active;
+            _wasActive = active || Previewing;
 
             nextFrame += interval;
             now = clock.Elapsed.TotalSeconds;
@@ -372,6 +383,7 @@ internal sealed partial class RenderHost : IDisposable
         RefreshTheme(force: true);
         Relayout();
         _idlePresented = false;
+        _previewSettingsDirty = true;
     }
 
     private void RefreshTheme(bool force = false)
@@ -759,6 +771,7 @@ internal sealed partial class RenderHost : IDisposable
         if (_timer != IntPtr.Zero) Win32.CloseHandle(_timer);
         foreach (var module in _modules.Values) module.Dispose();
         _modules.Clear();
+        DisposePreviews();
         if (_left is not null) { DisposeItems(_left); _left.Window.Dispose(); }
         if (_right is not null) { DisposeItems(_right); _right.Window.Dispose(); }
         _ctx?.Dispose();

@@ -48,6 +48,9 @@ internal sealed record ModuleInfo(
     }
 }
 
+/// <summary>Famille de modules, pour ranger la galerie : nom, phrase d'explication et modules (ids) dans l'ordre.</summary>
+internal sealed record ModuleCategory(string Name, string Blurb, string[] Ids);
+
 internal static class ModuleCatalog
 {
     /// <summary>Largeur par défaut d'un module (DIP, avant mise à l'échelle DPI).</summary>
@@ -253,6 +256,8 @@ internal static class ModuleCatalog
                 Slider("speed", "Vitesse", 1, 0.2, 3, 0.1, "×"),
                 Slider("density", "Densité d'étoiles", 60, 10, 200, 5),
                 Toggle("trails", "Traînées", true),
+                Toggle("warp", "Distorsion de vitesse", true,
+                    help: "Sur les passages les plus intenses, l'espace se déforme : le centre se creuse et les couleurs se séparent."),
             },
             () => new StarfieldModule()),
 
@@ -275,6 +280,48 @@ internal static class ModuleCatalog
                 Toggle("stretch", "Étirer sur toute la largeur", false),
             },
             () => new RingModule()),
+    };
+
+    /// <summary>
+    /// Rangement des modules pour l'interface (galerie, page Modules), dans l'ordre d'affichage.
+    /// Un module absent d'ici tombe dans la dernière catégorie.
+    /// </summary>
+    public static readonly ModuleCategory[] Categories =
+    {
+        new("Volume", "Combien ça tape : crêtes, volume perçu, sonie dans le temps.", new[] { "levels", "vu", "loudness" }),
+        new("Fréquences", "Les graves, les médiums et les aigus, en direct ou dans le temps.", new[] { "spectrum", "spectrogram" }),
+        new("Stéréo", "Comment le son se répartit entre gauche et droite.", new[] { "imager", "xyscope" }),
+        new("Notes", "Ce qui se joue : la note, la tonalité, la mélodie.", new[] { "tuner", "pianoroll", "melody" }),
+        new("Spectacle", "Pour le plaisir des yeux : des visuels qui dansent sur la musique.", new[] { "starfield", "ring", "waterfall" }),
+        new("Signal brut", "Le son tel quel : l'onde et les échantillons.", new[] { "waveform", "rawdata" }),
+    };
+
+    public static ModuleCategory CategoryOf(string id)
+    {
+        foreach (var category in Categories)
+            if (Array.IndexOf(category.Ids, id) >= 0) return category;
+        return Categories[^1];
+    }
+
+    /// <summary>Icône du module (police Segoe Fluent Icons / MDL2).</summary>
+    public static string Icon(string id) => id switch
+    {
+        "levels" => "",      // volume
+        "vu" => "",          // volume, ondes
+        "loudness" => "",    // historique
+        "spectrum" => "",    // égaliseur
+        "spectrogram" => "", // graphique en aires
+        "imager" => "",      // haut-parleurs
+        "xyscope" => "",     // cercle tracé
+        "tuner" => "",       // note de musique
+        "pianoroll" => "",   // clavier
+        "melody" => "",      // audio
+        "starfield" => "",   // étoile
+        "ring" => "",        // cercle qui tourne
+        "waterfall" => "",   // couches
+        "waveform" => "",    // tracé d'onde
+        "rawdata" => "",     // code
+        _ => "",
     };
 
     public static ModuleInfo? Find(string id)

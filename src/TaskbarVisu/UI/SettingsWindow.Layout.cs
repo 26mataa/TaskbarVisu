@@ -14,7 +14,7 @@ namespace TaskbarVisu.UI;
 
 /// <summary>
 /// Onglet Disposition : la barre des tâches en miniature, à l'échelle, avec seulement les modules affichés
-/// (clic = régler, glisser = déplacer), le module choisi, la galerie « Ajouter un module » et les réglages fins repliés.
+/// (clic = régler, glisser = déplacer), le module choisi, la galerie des modules (SettingsWindow.Gallery.cs) et les réglages fins repliés.
 /// </summary>
 public partial class SettingsWindow
 {
@@ -258,9 +258,21 @@ public partial class SettingsWindow
             FontFamily = MonoFont, FontSize = 10,
             Foreground = ChipText(),
             TextTrimming = TextTrimming.CharacterEllipsis,
-            Margin = new Thickness(5, 0, 4, 2),
+            Margin = new Thickness(0, 0, 4, 2),
             VerticalAlignment = VerticalAlignment.Center,
         };
+        // Icône devant le nom ; un module trop étroit pour son nom garde son icône seule, centrée.
+        bool narrow = width < 46;
+        var icon = Glyph(ModuleCatalog.Icon(cfg.Id), 11);
+        icon.Foreground = ChipText();
+        icon.Margin = narrow ? new Thickness(0, 0, 0, 2) : new Thickness(5, 0, 5, 2);
+        var label = new StackPanel
+        {
+            Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center,
+            HorizontalAlignment = narrow ? HorizontalAlignment.Center : HorizontalAlignment.Left,
+            Children = { icon },
+        };
+        if (!narrow) label.Children.Add(name);
         var chip = new Border
         {
             Width = width, Height = MiniHeight - 14,
@@ -270,7 +282,7 @@ public partial class SettingsWindow
             BorderBrush = selected ? accent : ChipEdge(),
             Cursor = Cursors.Hand,
             ToolTip = Loc.T(info.Name),
-            Child = new Grid { Children = { name, strip } },
+            Child = new Grid { Children = { label, strip } },
         };
         chip.MouseLeftButtonDown += (_, e) =>
         {
@@ -462,66 +474,6 @@ public partial class SettingsWindow
     }
 
     // ------------------------------------------------------------ Galerie et réglages fins
-
-    private void BuildGallery(Panel p)
-    {
-        p.Children.Add(Section("Ajouter un module"));
-        var hidden = ModuleCatalog.All
-            .Select(info => (Info: info, Cfg: S.AllModules.FirstOrDefault(c => c.Id == info.Id)))
-            .Where(x => x.Cfg is { Enabled: false })
-            .ToList();
-        if (hidden.Count == 0)
-        {
-            p.Children.Add(Card("Tous les modules sont déjà sur la barre.", null, ""));
-            return;
-        }
-
-        bool centre = CentreMode(MiniBar());
-        var cards = new WrapPanel();
-        foreach (var (info, cfg) in hidden)
-        {
-            var buttons = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 8, 0, 0) };
-            void AddTo(string text, List<ModuleConfig> target)
-            {
-                var b = new Button { Content = Loc.T(text), Margin = new Thickness(0, 0, 6, 0), Padding = new Thickness(10, 4, 10, 4) };
-                b.Click += (_, _) =>
-                {
-                    cfg!.Enabled = true;
-                    Place(cfg, target, null);
-                    _selected = cfg;
-                    Changed();
-                    BuildModules();
-                    BuildLayout();
-                };
-                buttons.Children.Add(b);
-            }
-            if (centre) AddTo("+ Ajouter", S.Right);
-            else
-            {
-                AddTo("+ Gauche", S.Left);
-                AddTo("+ Droite", S.Right);
-            }
-
-            var about = Description(Loc.T(info.Description));
-            about.TextTrimming = TextTrimming.WordEllipsis;
-            about.Height = 48;
-            about.Margin = new Thickness(0, 4, 0, 0);
-            var card = CardFrame(new StackPanel
-            {
-                Children =
-                {
-                    new TextBlock { Text = Loc.T(info.Name), FontWeight = FontWeights.SemiBold, FontSize = 14 },
-                    about,
-                    buttons,
-                },
-            }, new Thickness(14, 12, 14, 12));
-            card.Width = 236;
-            card.Margin = new Thickness(0, 0, 8, 8);
-            card.ToolTip = Loc.T(info.Description);
-            cards.Children.Add(card);
-        }
-        p.Children.Add(cards);
-    }
 
     private void BuildFineTuning(Panel p)
     {

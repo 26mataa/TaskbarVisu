@@ -47,6 +47,7 @@ public partial class SettingsWindow
     internal void GoToWelcomeStep(int step)
     {
         _welcomeStep = Math.Clamp(step, 0, WelcomeSteps - 1);
+        StopPreviews();
         _app.ShowGuideMark(_welcomeStep switch { 0 => GuideMark.Zones, 4 => GuideMark.Tray, _ => GuideMark.None });
         BuildWelcome();
     }
@@ -65,6 +66,7 @@ public partial class SettingsWindow
         // Les onglets reflètent ce qui a été choisi pendant le guide.
         RebuildAll();
         Tabs.SelectedItem = _welcomeOwnLayout ? TabLayout : TabGeneral;
+        RequestPreviews();
     }
 
     private void BuildWelcome()

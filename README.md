@@ -33,14 +33,16 @@ drawn straight into the empty space on each side of your icons, in a dot-matrix 
 | **XY oscilloscope** | goniometer or Lissajous drawn in phosphor that fades like a CRT |
 | **Raw data** | the samples as your sound card sees them, in scrolling hex or a bit matrix. Purely experimental |
 | **Waterfall** | one spectrum line per moment, stacked in perspective like receding mountains (“Unknown Pleasures”) |
-| **Hyperspace** | a starfield rushing at you: each frequency spawns its stars, speed follows the volume and jumps on the beat |
+| **Hyperspace** | a starfield rushing at you: each frequency spawns its stars, speed follows the volume and jumps on the beat; on extreme passages, speed distortion (space hollows out, colours split) |
 | **Melody** | the dominant note leaves a glowing trail on a note grid, slides included |
 | **Ring** | the spectrum wrapped into a circle that breathes with the bass, turns towards the stereo side, ripples on each beat |
 
 The *Layout* page shows your taskbar in miniature, modules to scale: click one to set its width, drag it
 to reorder or switch sides, or group them all in the middle when your icons are left-aligned. Each module
 can use the global palette, another palette, its own gradient or a solid colour. On launch they run a
-short LED *self-test* before going live.
+short LED *self-test* before going live. Further down the *Layout* page, every module is sorted into six categories
+(volume, frequencies, stereo, notes, eye candy, raw signal), each with a live preview on what is playing, and the
+*Appearance* page keeps your taskbar live at the top so every colour or effect change shows right away.
 
 On first launch a 5-step guide lights up the free areas on your real taskbar, lets you pick a look and a
 module pack (Studio, Musician, Minimal, or an empty taskbar to fill yourself), then points at the tray icon.

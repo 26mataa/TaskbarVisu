@@ -35,6 +35,9 @@ public partial class App : Application
     // Un couple « détection de barre + rendu » par écran affiché (un seul, sauf « tous les écrans »).
     private readonly List<(TaskbarTracker Tracker, RenderHost Host)> _screens = new();
     private string _screensKey = string.Empty;
+
+    /// <summary>Rendu de l'écran principal : il fournit aussi les aperçus en direct de la fenêtre de réglages.</summary>
+    internal Rendering.RenderHost? PreviewHost => _screens.Count > 0 ? _screens[0].Host : null;
     private System.Windows.Threading.DispatcherTimer? _screenTimer, _updateTimer;
     private string? _dumpDirectory;
     private bool _headless;

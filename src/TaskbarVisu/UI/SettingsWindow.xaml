@@ -109,9 +109,13 @@
             </TabItem>
 
             <TabItem x:Name="TabAppearance">
-                <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <StackPanel x:Name="AppearancePanel" Margin="20,18,28,24" />
-                </ScrollViewer>
+                <!-- Titre et aperçu en direct épinglés : chaque réglage plus bas s'y voit sans remonter. -->
+                <DockPanel>
+                    <StackPanel x:Name="AppearanceHeader" DockPanel.Dock="Top" Margin="20,18,28,4" />
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <StackPanel x:Name="AppearancePanel" Margin="20,0,28,24" />
+                    </ScrollViewer>
+                </DockPanel>
             </TabItem>
 
             <TabItem x:Name="TabLayout">

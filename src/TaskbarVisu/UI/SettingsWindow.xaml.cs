@@ -41,8 +41,12 @@ public partial class SettingsWindow : Window
         // Windows passe en clair ou en sombre (ou change de couleur d'accentuation) : les aperçus et liserés suivent.
         _themeKey = ThemeKey();
         Microsoft.Win32.SystemEvents.UserPreferenceChanged += OnUserPreferenceChanged;
+        // Aperçus en direct de la galerie : seulement quand la fenêtre est à l'écran.
+        IsVisibleChanged += (_, _) => RequestPreviews();
+        StateChanged += (_, _) => RequestPreviews();
         Closed += (_, _) =>
         {
+            StopPreviews();
             Microsoft.Win32.SystemEvents.UserPreferenceChanged -= OnUserPreferenceChanged;
             _statusTimer.Stop();
             if (_welcomeStep >= 0) _app.ShowGuideMark(Rendering.GuideMark.None);
@@ -107,6 +111,7 @@ public partial class SettingsWindow : Window
         else if (Tabs.SelectedItem == TabAppearance) BuildAppearance();
         else if (Tabs.SelectedItem == TabModules) BuildModules();
         else if (Tabs.SelectedItem == TabLayout) BuildLayout();
+        RequestPreviews();
     }
 
     private void GoTo(TabItem page) => Tabs.SelectedItem = page;
@@ -388,10 +393,14 @@ public partial class SettingsWindow : Window
     {
         var p = AppearancePanel;
         p.Children.Clear();
-        PageHeader(p, "Apparence", "Choisissez un style en un clic, puis ajustez les couleurs et les effets si vous le souhaitez.");
+        AppearanceHeader.Children.Clear();
+        PageHeader(AppearanceHeader, "Apparence", "Choisissez un style en un clic, puis ajustez les couleurs et les effets si vous le souhaitez.");
+        AppearanceHeader.Children.Add(LiveBar());
 
         // 1. Préréglages : un clic règle tout le style d'un coup.
-        p.Children.Add(Section("Préréglages"));
+        var presets = Section("Préréglages");
+        presets.Margin = new Thickness(2, 8, 0, 8);
+        p.Children.Add(presets);
         p.Children.Add(PresetGrid(4, () => RebuildKeepingScroll(AppearancePanel, BuildAppearance), withMine: false));
         BuildMyStyles(p);
 
@@ -640,8 +649,19 @@ public partial class SettingsWindow : Window
         foreach (var (cfg, side) in shown) AddModuleExpander(p, cfg, side);
         if (hidden.Count > 0)
         {
+            // Les modules masqués, rangés comme dans la galerie de la page Disposition.
             p.Children.Add(Section("Masqués"));
-            foreach (var (cfg, side) in hidden) AddModuleExpander(p, cfg, side);
+            foreach (var category in ModuleCatalog.Categories)
+            {
+                var members = hidden.Where(x => ModuleCatalog.CategoryOf(x.Cfg.Id) == category)
+                    .OrderBy(x => Array.IndexOf(category.Ids, x.Cfg.Id)).ToList();
+                if (members.Count == 0) continue;
+                var title = Description(Loc.T(category.Name).ToUpperInvariant());
+                title.Margin = new Thickness(2, 10, 0, 6);
+                title.FontWeight = FontWeights.SemiBold;
+                p.Children.Add(title);
+                foreach (var (cfg, side) in members) AddModuleExpander(p, cfg, side);
+            }
         }
         MergeHints(p);
     }
@@ -708,20 +728,15 @@ public partial class SettingsWindow : Window
         p.Children.Add(expander);
     }
 
-    /// <summary>En-tête d'un module : pastille à ses couleurs, nom, et zone de la barre.</summary>
+    /// <summary>En-tête d'un module : son icône à ses couleurs, nom, et zone de la barre.</summary>
     private FrameworkElement ModuleHeader(ModuleConfig cfg, ModuleInfo info, string? side)
     {
-        var palette = cfg.Colors == ModuleColorMode.Palette ? cfg.ColorPalette : S.Palette;
-        var swatch = new Border
-        {
-            Width = 28, Height = 8, CornerRadius = new CornerRadius(4), Margin = new Thickness(0, 0, 14, 0),
-            VerticalAlignment = VerticalAlignment.Center, Opacity = cfg.Enabled ? 1 : 0.45,
-            Background = cfg.Colors == ModuleColorMode.Solid
-                ? new SolidColorBrush(ToColor(cfg.ColorSolid))
-                : PaletteBrush(palette, cfg.Colors == ModuleColorMode.Palette ? cfg.Gradient : null),
-        };
+        var icon = ModuleIcon(cfg, 16);
+        icon.Width = 22;
+        icon.Margin = new Thickness(0, 0, 12, 0);
+        icon.Opacity = cfg.Enabled ? 1 : 0.5;
         var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 4) };
-        row.Children.Add(swatch);
+        row.Children.Add(icon);
         row.Children.Add(new TextBlock { Text = Loc.T(info.Name), FontSize = 14, VerticalAlignment = VerticalAlignment.Center });
         if (side is not null)
         {

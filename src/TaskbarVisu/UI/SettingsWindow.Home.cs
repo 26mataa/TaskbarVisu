@@ -71,16 +71,8 @@ public partial class SettingsWindow
                         Orientation = Orientation.Horizontal,
                         Children =
                         {
-                            new System.Windows.Shapes.Rectangle
-                            {
-                                Width = 14, Height = 5, RadiusX = 2.5, RadiusY = 2.5, Margin = new Thickness(0, 0, 8, 0),
-                                VerticalAlignment = VerticalAlignment.Center,
-                                Fill = cfg.Colors == ModuleColorMode.Solid
-                                    ? new System.Windows.Media.SolidColorBrush(ToColor(cfg.ColorSolid))
-                                    : PaletteBrush(cfg.Colors == ModuleColorMode.Palette ? cfg.ColorPalette : S.Palette,
-                                        cfg.Colors == ModuleColorMode.Palette ? cfg.Gradient : S.Gradient),
-                            },
-                            new TextBlock { Text = Loc.T(info.Name) },
+                            HomeChipIcon(cfg),
+                            new TextBlock { Text = Loc.T(info.Name), VerticalAlignment = VerticalAlignment.Center },
                         },
                     },
                     Padding = new Thickness(12, 6, 12, 6),
@@ -113,6 +105,13 @@ public partial class SettingsWindow
             "Les cinq étapes du premier lancement, à rejouer quand vous voulez.", "");
 
         RefreshHome();
+    }
+
+    private TextBlock HomeChipIcon(ModuleConfig cfg)
+    {
+        var icon = ModuleIcon(cfg, 14);
+        icon.Margin = new Thickness(0, 0, 8, 0);
+        return icon;
     }
 
     /// <summary>Tuile d'état : icône et titre, puis une valeur mise à jour en direct.</summary>

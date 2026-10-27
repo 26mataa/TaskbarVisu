@@ -25,7 +25,7 @@ posés dans les espaces libres à gauche et à droite des icônes, sans cadre.
 | **Oscilloscope XY** | Goniomètre (milieu / côtés) ou Lissajous (gauche / droite) tracé en phosphore qui s'éteint lentement, réticule gradué |
 | **Données brutes** | Les échantillons tels que la carte son les voit : lignes hexadécimales qui défilent ou matrice de bits. Purement expérimental |
 | **Cascade** | Une ligne de spectre par instant, empilées en perspective comme des montagnes qui reculent (façon « Unknown Pleasures ») |
-| **Hyperespace** | Champ d'étoiles qui fonce vers vous : chaque fréquence fait naître ses étoiles, la vitesse suit le volume et bondit sur les temps forts |
+| **Hyperespace** | Champ d'étoiles qui fonce vers vous : chaque fréquence fait naître ses étoiles, la vitesse suit le volume et bondit sur les temps forts ; dans les passages extrêmes, distorsion de vitesse (l'espace se creuse, les couleurs se séparent) |
 | **Mélodie** | La note dominante laisse une traînée lumineuse sur une grille de notes, glissés compris |
 | **Anneau** | Le spectre enroulé en cercle : il respire sur les basses, tourne du côté de la stéréo, une onde à chaque temps fort |
 
@@ -212,9 +212,12 @@ menu à gauche, et chaque réglage est une carte avec une icône et une phrase d
   mises à jour, i/s, résolution FFT, économie d'énergie, dossier des réglages.
 - **Apparence** : préréglages en cartes (le style actif est entouré), couleurs (palette, animation des couleurs,
   textes, clair / sombre), effets, Mes styles (enregistrer le style actuel), partage de style replié.
+  En haut, épinglée, la barre en direct : les modules affichés tournent sur le son du moment, chaque réglage s'y voit tout de suite.
 - **Disposition** : la barre des tâches en miniature, modules à l'échelle et place restante par zone.
   Un clic sur un module ouvre ses réglages (largeur de 60 à 400 px, décaler, changer de côté, retirer,
-  options) ; on peut aussi le glisser. En dessous : ajout des modules masqués (+ Gauche / + Droite),
+  options) ; on peut aussi le glisser. En dessous : tous les modules rangés en six catégories (Volume, Fréquences,
+  Stéréo, Notes, Spectacle, Signal brut) avec un filtre, chacun avec un aperçu en direct sur le son du moment
+  (+ Gauche / + Droite, ou « Sur la barre » s'il y est déjà),
   icônes alignées à gauche (deux zones ou tout au centre), puis les réglages fins repliés (étirement ou
   placement, espacement, fondu, marge verticale).
 - **Guide de démarrage** : au premier lancement, cinq étapes avec « Passer » toujours visible. Les zones
@@ -224,7 +227,7 @@ menu à gauche, et chaque réglage est une carte avec une icône et une phrase d
 
   ![Guide de démarrage](docs/welcome.png)
 
-- **Modules** : options propres à chaque module, réinitialisables ; modules affichés d'abord, puis les masqués
+- **Modules** : options propres à chaque module, réinitialisables ; modules affichés d'abord, puis les masqués rangés par catégorie
   (avec « Afficher sur la barre »).
 
 Réglages et journal : `%APPDATA%\TaskbarVisu\` (`settings.json`, `log.txt`). Mode portable : avec un fichier
