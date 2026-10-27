@@ -29,6 +29,7 @@ internal sealed class StarfieldModule : VisualizerModule
     // Moyenne longue de départ : un niveau de musique typique, pour ne pas partir en distorsion au premier morceau.
     private float _long = 0.12f, _drive, _time, _super, _music;
     private float _hat, _hatSlowDb = -60;
+    private float _speedVel, _envDb = -60, _ceilDb = -20, _kickSoft;
 
     private readonly SKPaint _fill = new() { IsAntialias = false, Style = SKPaintStyle.Fill };
     private readonly SKPaint _trail = new() { IsAntialias = false, Style = SKPaintStyle.Stroke, StrokeCap = SKStrokeCap.Square };
@@ -63,15 +64,25 @@ internal sealed class StarfieldModule : VisualizerModule
         _kickSlowDb += (kickDb - _kickSlowDb) * (1 - (float)Math.Exp(-dt / 0.4));
         _kick *= (float)Math.Exp(-dt / 0.25);
 
-        // Vitesse : suit le volume en douceur (monte en 0,15 s, retombe en 0,5 s).
-        float energy = quiet ? 0 : (audio.RmsL + audio.RmsR) / 2;
-        float target = quiet ? 0.05f : 0.25f + Math.Min(1f, energy * 4);
-        _speed += (target - _speed) * (1 - (float)Math.Exp(-dt / (target > _speed ? 0.15 : 0.5)));
-
         float loudness = quiet ? -70 : (float)audio.Loudness.Momentary;
         // Musique ou voix : une voix (vers −17 LUFS) reste à 0, un morceau (−10 LUFS et plus) à 1.
         float music = Math.Clamp((loudness + 16) / 6, 0, 1);
         _music += (music - _music) * (1 - (float)Math.Exp(-dt / 1.0));
+
+        // Vitesse de croisière. Voix : suit le volume, calmement. Musique : suit le relief du son, le niveau de
+        // l'instant face au plafond des dernières secondes (en dB) : chaque passage plus doux ralentit, chaque
+        // reprise relance, même sur un morceau mixé à fond.
+        float energy = quiet ? 0 : (audio.RmsL + audio.RmsR) / 2;
+        float db = energy > 1e-5f ? 20 * MathF.Log10(energy) : -100;
+        _envDb += (db - _envDb) * (1 - (float)Math.Exp(-dt / (db > _envDb ? 0.03 : 0.25)));
+        // Plafond : rattrape vite un niveau qui monte, redescend lentement (1,5 dB/s), si bien qu'un long passage
+        // doux finit par redevenir la norme et que ça repart.
+        _ceilDb = _envDb > _ceilDb ? _ceilDb + (_envDb - _ceilDb) * (1 - (float)Math.Exp(-dt / 0.1)) : _ceilDb - (float)dt * 1.5f;
+        float shape = MathF.Pow(Math.Clamp(1 + (_envDb - _ceilDb) / 9, 0, 1), 1.5f);
+        float calm = 0.25f + Math.Min(1f, energy * 4), relief = 0.2f + 1.6f * shape;
+        float cruise = quiet ? 0.05f : calm + (relief - calm) * _music;
+        // Un passage doux freine tout, coups compris : on sent la retenue, puis la reprise.
+        float lull = 1 - 0.6f * _music * (1 - shape);
 
         // Charleston : la bande la plus aiguë qui claque de quelques dB au-dessus de sa moyenne récente.
         float hatDb = _bandDb[Bands - 1];
@@ -96,9 +107,21 @@ internal sealed class StarfieldModule : VisualizerModule
         _time += (float)dt;
 
         // Un coup de charleston donne une petite poussée (dans la musique seulement, pas sur les « s » d'une voix).
-        float speed = (_speed + 1.5f * _kick + 0.3f * _hat * _music + 1.5f * _drive + 5 * _super * _super)
+        float target = (cruise + (1.5f * _kick + 0.3f * _hat * _music + 1.5f * _drive + 5 * _super * _super) * lull)
             * (float)Opt("speed");
-
+        // Tout passe par un ressort amorti sans rebond : la vitesse accélère et freine en courbes douces,
+        // jamais d'à-coup, même sur un coup de grosse caisse.
+        const float W = 9;
+        int steps = (int)Math.Ceiling(Math.Min(dt, 0.1) / 0.01);
+        float h = (float)Math.Min(dt, 0.1) / Math.Max(1, steps);
+        for (int s = 0; s < steps; s++)
+        {
+            _speedVel += (W * W * (target - _speed) - 2 * W * _speedVel) * h;
+            _speed += _speedVel * h;
+        }
+        _speed = Math.Max(_speed, 0);
+        float speed = _speed;
+        _kickSoft += (_kick - _kickSoft) * (1 - (float)Math.Exp(-dt / 0.08));
         // Naissances : chaque bande sème des étoiles selon son niveau, au loin, tout près de l'axe
         // (plus vite quand ça fonce, sinon les étoiles passent trop vite pour remplir le ciel).
         float density = OptF("density");
@@ -159,7 +182,7 @@ internal sealed class StarfieldModule : VisualizerModule
         float fx = rect.Width * 0.5f * Near * 1.6f, fy = rect.Height * 0.5f * Near * 1.6f;
         bool trails = Flag("trails");
         // Traînées : courtes au repos, étirées sur un coup ou en super sonic, très longues dans la distorsion.
-        float warp = Math.Min(1, _kick + d + 0.6f * _super);
+        float warp = Math.Min(1, _kickSoft + d + 0.6f * _super);
         float stretch = 1.35f + 0.6f * warp + 0.8f * d + 0.6f * _super, factor = 2.5f + 3 * warp + 3 * d;
         _trail.StrokeWidth = p;
 
