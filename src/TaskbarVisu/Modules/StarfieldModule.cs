@@ -9,7 +9,8 @@ namespace TaskbarVisu.Modules;
 /// filent tout droit vers les bords. Chaque bande de fréquence fait naître ses étoiles à proportion de son énergie,
 /// de sa couleur (graves → début de la palette, aigus → fin), et elles brillent quand leur bande sonne.
 /// La vitesse suit le volume en douceur ; un vrai coup de grosse caisse (graves profonds seulement, pas la voix)
-/// donne un bond et étire les traînées. Dans les cas extrêmes (une montée qui dépasse de loin la moyenne, avec des
+/// donne un bond et étire les traînées, un coup de charleston une petite poussée. Sur un morceau puissant, la vitesse
+/// suit son relief : les creux ralentissent, les gros moments foncent à toute allure. Dans les cas extrêmes (une montée qui dépasse de loin la moyenne, avec des
 /// basses), distorsion de vitesse : traînées très longues, couleurs qui se séparent, anneaux qui partent du centre.
 /// </summary>
 internal sealed class StarfieldModule : VisualizerModule
@@ -24,9 +25,10 @@ internal sealed class StarfieldModule : VisualizerModule
     private readonly float[] _bandDb = new float[Bands], _level = new float[Bands];
     private readonly float[] _spawn = new float[Bands];
     private readonly Random _random = new();
-    private float _speed, _kick, _bassSlow, _sinceKick = 9;
+    private float _speed, _kick, _kickSlowDb = -60, _sinceKick = 9;
     // Moyenne longue de départ : un niveau de musique typique, pour ne pas partir en distorsion au premier morceau.
-    private float _long = 0.12f, _drive, _time, _over;
+    private float _long = 0.12f, _drive, _time, _over, _power;
+    private float _fastDb = -60, _avgDb = -20, _hat, _hatSlowDb = -60;
 
     private readonly SKPaint _fill = new() { IsAntialias = false, Style = SKPaintStyle.Fill };
     private readonly SKPaint _trail = new() { IsAntialias = false, Style = SKPaintStyle.Stroke, StrokeCap = SKStrokeCap.Square };
@@ -47,17 +49,18 @@ internal sealed class StarfieldModule : VisualizerModule
             _level[b] = v > _level[b] ? _level[b] + (v - _level[b]) * rise : Math.Max(v, _level[b] - (float)dt * 1.5f);
         }
 
-        // Coup de grosse caisse : la bande la plus grave (40–80 Hz, que la voix n'atteint presque pas)
-        // monte nettement au-dessus de sa moyenne récente.
-        float bass = _level[0];
+        // Coup de grosse caisse : la bande la plus grave (40–80 Hz, que la voix n'atteint presque pas) saute
+        // de quelques dB au-dessus de sa moyenne récente. En dB bruts : sur un son mixé à fond, les niveaux
+        // affichés saturent et ne laisseraient plus voir les coups.
+        float bass = _level[0], kickDb = _bandDb[0];
         _sinceKick += (float)dt;
-        bool kick = !quiet && bass > 0.4f && bass > _bassSlow + 0.12f && _sinceKick > 0.15f;
+        bool kick = !quiet && bass > 0.4f && kickDb > _kickSlowDb + 5 && _sinceKick > 0.15f;
         if (kick)
         {
-            _kick = Math.Min(1, Math.Max(_kick, 0.4f + (bass - _bassSlow) * 2.5f));
+            _kick = Math.Min(1, Math.Max(_kick, 0.4f + (kickDb - _kickSlowDb - 5) * 0.08f));
             _sinceKick = 0;
         }
-        _bassSlow += (bass - _bassSlow) * (1 - (float)Math.Exp(-dt / 0.4));
+        _kickSlowDb += (kickDb - _kickSlowDb) * (1 - (float)Math.Exp(-dt / 0.4));
         _kick *= (float)Math.Exp(-dt / 0.25);
 
         // Vitesse : suit le volume en douceur (monte en 0,15 s, retombe en 0,5 s).
@@ -65,10 +68,28 @@ internal sealed class StarfieldModule : VisualizerModule
         float target = quiet ? 0.05f : 0.25f + Math.Min(1f, energy * 4);
         _speed += (target - _speed) * (1 - (float)Math.Exp(-dt / (target > _speed ? 0.15 : 0.5)));
 
-        // Surpuissance : un son mixé à fond (sonie au-delà de −7 LUFS, à fond vers −2) fait exploser la vitesse.
-        // Un morceau normal reste en dessous, la voix très en dessous.
-        float over = quiet ? 0 : Math.Clamp(((float)audio.Loudness.Momentary + 7) / 5, 0, 1);
-        _over += (over - _over) * (1 - (float)Math.Exp(-dt / (over > _over ? 0.3 : 1.0)));
+        // Puissance du morceau (sonie perçue : rien sous −14 LUFS, à fond vers −3) : elle ne fait pas aller vite
+        // à elle seule, elle fixe jusqu'où la vitesse peut monter. La voix reste en dessous.
+        float power = quiet ? 0 : Math.Clamp(((float)audio.Loudness.Momentary + 14) / 11, 0, 1);
+        _power += (power - _power) * (1 - (float)Math.Exp(-dt / 1.0));
+
+        // Relief : le niveau de l'instant (en dB) face à la moyenne des dernières secondes du morceau.
+        // Les creux et les pauses ralentissent, les gros moments foncent.
+        float db = energy > 1e-5f ? 20 * MathF.Log10(energy) : -100;
+        _fastDb += (db - _fastDb) * (1 - (float)Math.Exp(-dt / (db > _fastDb ? 0.04 : 0.15)));
+        if (!quiet) _avgDb += (_fastDb - _avgDb) * (1 - (float)Math.Exp(-dt / 3));
+        float lift = Math.Clamp((_fastDb - _avgDb + 3) / 6, 0, 1);
+
+        // Charleston : la bande la plus aiguë qui claque de quelques dB au-dessus de sa moyenne récente.
+        float hatDb = _bandDb[Bands - 1];
+        if (!quiet && hatDb > -55 && hatDb > _hatSlowDb + 4)
+            _hat = Math.Max(_hat, Math.Min(1, 0.4f + (hatDb - _hatSlowDb - 4) * 0.1f));
+        _hatSlowDb += (hatDb - _hatSlowDb) * (1 - (float)Math.Exp(-dt / 0.3));
+        _hat *= (float)Math.Exp(-dt / 0.08);
+
+        // Surpuissance : puissance × relief, qui suit vite (monte en 0,08 s, retombe en 0,3 s).
+        float over = _power * _power * lift;
+        _over += (over - _over) * (1 - (float)Math.Exp(-dt / (over > _over ? 0.08 : 0.3)));
 
         // Distorsion de vitesse : seulement dans les cas extrêmes, quand le son dépasse de loin sa moyenne des
         // dernières secondes ET que les graves cognent (une montée de musique, pas quelqu'un qui parle fort).
@@ -80,7 +101,9 @@ internal sealed class StarfieldModule : VisualizerModule
         if (!quiet) _long += (energy - _long) * (1 - (float)Math.Exp(-dt / 4));
         _time += (float)dt;
 
-        float speed = (_speed + 1.5f * _kick + 1.5f * _drive + 4 * _over * _over) * (float)Opt("speed");
+        // Les coups de grosse caisse et de charleston poussent d'autant plus fort que le morceau est puissant.
+        float speed = (_speed + 1.5f * _kick * (1 + _power) + 0.8f * _hat * _power + 1.5f * _drive + 4 * _over)
+            * (float)Opt("speed");
 
         // Naissances : chaque bande sème des étoiles selon son niveau, au loin, tout près de l'axe
         // (plus vite quand ça fonce, sinon les étoiles passent trop vite pour remplir le ciel).
@@ -169,7 +192,8 @@ internal sealed class StarfieldModule : VisualizerModule
             if (x < rect.Left - 4 || x > rect.Right + 4 || y < rect.Top - 4 || y > rect.Bottom + 4) continue;
             // Plus proche = plus claire et plus grosse ; une étoile brille aussi quand sa bande sonne.
             float closeness = Math.Clamp(1 - (z - Near) / 1.2f, 0, 1);
-            float glow = _level[Math.Min(Bands - 1, (int)(_tone[i] * Bands))];
+            // Les étoiles aiguës scintillent sur chaque coup de charleston.
+            float glow = _level[Math.Min(Bands - 1, (int)(_tone[i] * Bands))] + (_tone[i] > 0.75f ? _hat * _power : 0);
             float tone = Math.Clamp(_tone[i] * 0.85f + 0.15f * glow, 0, 1);
             var color = t.Spectral(tone).WithAlpha((byte)Math.Clamp(25 + 180 * closeness * closeness + 50 * glow, 0, 255));
             if (trails)
