@@ -15,7 +15,7 @@ internal sealed class WaterfallModule : VisualizerModule
     private const int MaxLines = 25;
 
     private readonly SpectrumMapper _mapper = new();
-    private float[] _db = Array.Empty<float>();
+    private float[] _db = Array.Empty<float>(), _vel = Array.Empty<float>();
     // Historique circulaire : MaxLines lignes de _points valeurs (0..1).
     private float[][] _history = Array.Empty<float[]>();
     private int _head, _filled;
@@ -38,6 +38,7 @@ internal sealed class WaterfallModule : VisualizerModule
         // Un point tous les 2 pixels techniques : les crêtes restent fines.
         int points = Math.Max(16, Width / (2 * Px));
         _db = new float[points];
+        _vel = new float[points];
         _history = new float[MaxLines][];
         for (int i = 0; i < MaxLines; i++) _history[i] = new float[points];
         _filled = 0;
@@ -62,14 +63,15 @@ internal sealed class WaterfallModule : VisualizerModule
         _mapper.MapDb(audio.SpectrumDb, _db, smooth: true);
         var line = _history[_head];
         float floor = OptF("floor"), range = 60;
-        float k = 1 - (float)Math.Exp(-dt / 0.03);
         _liveQuiet = true;
         for (int i = 0; i < line.Length; i++)
         {
             // Bords amortis : les crêtes montent au centre, comme sur la pochette.
             float edge = MathF.Sin(MathF.PI * (i + 0.5f) / line.Length);
             float v = Math.Clamp((_db[i] - floor) / range, 0, 1);
-            line[i] += (v * v * (0.35f + 0.65f * edge) - line[i]) * k;
+            // Ressort : la crête suit le son en courbe douce, sans les angles de chaque nouvelle analyse.
+            Spring.Step(ref line[i], ref _vel[i], v * v * (0.35f + 0.65f * edge), 28, dt);
+            line[i] = Math.Max(0, line[i]);
             if (line[i] > 0.02f) _liveQuiet = false;
         }
         if (_filled == 0) _filled = 1;

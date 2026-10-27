@@ -149,6 +149,8 @@ internal static class ModuleCatalog
                 Slider("ceiling", "Plafond", -12, -40, 0, 1, "dB", advanced: true),
                 Slider("tilt", "Pente", 4.5, 0, 6, 0.5, "dB/oct", advanced: true, help: "Remonte les aigus pour équilibrer l'affichage."),
                 Slider("release", "Retombée", 36, 6, 120, 2, "dB/s", advanced: true),
+                Toggle("smooth", "Mouvement fluide", true, advanced: true,
+                    help: "Les barres montent et retombent en courbes douces. Désactivez pour la réponse la plus directe, comme un instrument de mesure."),
                 Slider("minFreq", "Fréquence min", 20, 20, 200, 5, "Hz", advanced: true),
                 Slider("maxFreq", "Fréquence max", 20000, 2000, 20000, 500, "Hz", advanced: true),
             },

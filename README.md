@@ -2,6 +2,8 @@
 
 *English · [Français](README.fr.md)*
 
+![TaskbarVisu live: levels, spectrum, Hyperspace, Ring, Waterfall, piano roll, stereo imager](docs/showcase.gif)
+
 **Audio visualizers living inside the Windows 11 taskbar.** No window, no frame: tiny lab-grade meters
 drawn straight into the empty space on each side of your icons, in a dot-matrix / y2k / test-equipment style.
 

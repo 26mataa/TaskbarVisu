@@ -18,6 +18,7 @@ internal sealed class SpectrumModule : VisualizerModule
 
     private readonly SpectrumMapper _mapper = new();
     private float[] _raw = Array.Empty<float>(), _disp = Array.Empty<float>(), _peak = Array.Empty<float>();
+    private float[] _meter = Array.Empty<float>(), _dispVel = Array.Empty<float>();
     private float[] _sideBins = Array.Empty<float>(), _sideRaw = Array.Empty<float>(), _side = Array.Empty<float>();
     private int _columns;
 
@@ -68,6 +69,8 @@ internal sealed class SpectrumModule : VisualizerModule
         _raw = new float[count];
         _sideRaw = new float[count];
         _disp = Enumerable.Repeat(-200f, count).ToArray();
+        _meter = Enumerable.Repeat(-200f, count).ToArray();
+        _dispVel = new float[count];
         _peak = Enumerable.Repeat(-200f, count).ToArray();
         _side = Enumerable.Repeat(-200f, count).ToArray();
     }
@@ -86,9 +89,13 @@ internal sealed class SpectrumModule : VisualizerModule
         for (int i = 0; i < _columns; i++)
         {
             float r = _raw[i];
-            _disp[i] = r >= _disp[i] ? _disp[i] + (r - _disp[i]) * rise : Math.Max(r, _disp[i] - fall);
+            _meter[i] = r >= _meter[i] ? _meter[i] + (r - _meter[i]) * rise : Math.Max(r, _meter[i] - fall);
             _peak[i] = r >= _peak[i] ? r : Math.Max(r, _peak[i] - peakFall);
         }
+        // Mouvement fluide : l'affichage rejoint la mesure par un ressort (≈ 0,1 s), sans les marches de chaque
+        // nouvelle analyse ni les cassures de la retombée. Désactivé : la mesure telle quelle.
+        if (Flag("smooth")) Spring.Step(_disp, _dispVel, _meter, 40, dt);
+        else Array.Copy(_meter, _disp, _columns);
 
         if (relief && Flag("side"))
         {

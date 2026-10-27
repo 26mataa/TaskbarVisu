@@ -36,7 +36,11 @@ public partial class SettingsWindow : Window
         Tabs.SelectionChanged += OnPageChanged;
 
         _statusTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
-        _statusTimer.Tick += (_, _) => UpdateStatus();
+        _statusTimer.Tick += (_, _) =>
+        {
+            UpdateStatus();
+            UpdateUsage();
+        };
         _statusTimer.Start();
         // Windows passe en clair ou en sombre (ou change de couleur d'accentuation) : les aperçus et liserés suivent.
         _themeKey = ThemeKey();
@@ -178,6 +182,7 @@ public partial class SettingsWindow : Window
             : "Ce raccourci est déjà utilisé par une autre application : choisissez-en un autre."));
 
         BuildUpdates(p);
+        BuildDiagnostics(p);
 
         // Réglages techniques : repliés, les valeurs par défaut conviennent à presque tout le monde.
         var advanced = new StackPanel { Margin = new Thickness(0, 4, 0, 0) };

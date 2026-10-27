@@ -2,6 +2,8 @@
 
 *[English](README.md) · Français*
 
+![TaskbarVisu en direct : niveaux, spectre, Hyperespace, Anneau, Cascade, piano roll, imageur stéréo](docs/showcase.gif)
+
 ![TaskbarVisu](docs/showcase.png)
 
 Visualiseurs audio intégrés à la barre des tâches de Windows 11, façon MiniMeters :

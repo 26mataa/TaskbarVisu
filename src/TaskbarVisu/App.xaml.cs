@@ -225,6 +225,15 @@ public partial class App : Application
             timer.Start();
         }
 
+        // Diagnostic : --bug-report fichier écrit le rapport du bouton « Signaler un problème » dans un fichier, puis quitte.
+        int reportIndex = Array.FindIndex(e.Args, a => a.Equals("--bug-report", StringComparison.OrdinalIgnoreCase));
+        if (reportIndex >= 0 && reportIndex + 1 < e.Args.Length)
+        {
+            File.WriteAllText(e.Args[reportIndex + 1], BugReport.Build(string.Empty));
+            ExitApp();
+            return;
+        }
+
         // Diagnostic : --ui-theme light | dark force le thème de la fenêtre (captures sans toucher à Windows).
         int uiThemeIndex = Array.FindIndex(e.Args, a => a.Equals("--ui-theme", StringComparison.OrdinalIgnoreCase));
         if (uiThemeIndex >= 0 && uiThemeIndex + 1 < e.Args.Length)

@@ -21,6 +21,8 @@ internal sealed class RingModule : VisualizerModule
 
     private readonly SpectrumMapper _mapper = new();
     private readonly float[] _db = new float[Points / 2], _v = new float[Points / 2], _peak = new float[Points / 2];
+    private readonly float[] _target = new float[Points / 2], _vel = new float[Points / 2];
+    private float _punchSoft, _punchVel;
     private float _bass, _slow, _angle, _balance, _ceiling = -40, _punch;
     private readonly float[] _echoAge = new float[MaxEchoes], _echoSize = new float[MaxEchoes];
     private int _echoes;
@@ -56,9 +58,15 @@ internal sealed class RingModule : VisualizerModule
         {
             float rel = Math.Clamp(1 + (_db[i] - _ceiling) / 36, 0, 1);
             float v = _quiet ? 0 : rel * rel;
-            _v[i] = v > _v[i] ? _v[i] + (v - _v[i]) * k * 2 : Math.Max(v, _v[i] - fall);
+            _target[i] = v > _target[i] ? _target[i] + (v - _target[i]) * k * 2 : Math.Max(v, _target[i] - fall);
+            if (i < 4) bass += _target[i] / 4;
+        }
+        // Les barres rejoignent leur niveau par un ressort : elles montent et retombent en courbes, sans à-coup.
+        Spring.Step(_v, _vel, _target, Style == 2 ? 20 : 24, dt);
+        for (int i = 0; i < _v.Length; i++)
+        {
+            _v[i] = Math.Max(0, _v[i]);
             _peak[i] = Math.Max(_v[i], _peak[i] - (float)dt * 0.5f);
-            if (i < 4) bass += _v[i] / 4;
         }
         _bass += (bass - _bass) * (1 - (float)Math.Exp(-dt / 0.05));
 
@@ -67,7 +75,7 @@ internal sealed class RingModule : VisualizerModule
         float balance = l + r > 1e-4f ? (r - l) / (r + l) : 0;
         _balance += (balance - _balance) * (1 - (float)Math.Exp(-dt / 0.4));
         // Orbite : chaque temps fort donne aussi un élan à la rotation.
-        float push = Style == 2 ? 1.6f * _punch : 0;
+        float push = Style == 2 ? 1.6f * _punchSoft : 0;
         _angle = (_angle + (float)dt * (0.15f + 2.5f * _balance + push) * (float)Opt("spin")) % MathF.Tau;
 
         // Temps fort : coup de poing (l'anneau grossit d'un coup) et une onde qui part. Seulement quand les graves
@@ -87,6 +95,8 @@ internal sealed class RingModule : VisualizerModule
         }
         _slow += (_bass - _slow) * (1 - (float)Math.Exp(-dt / 0.4));
         _punch *= (float)Math.Exp(-dt / 0.12);
+        // Le saut affiché suit le coup par un ressort : il gonfle vite mais en douceur, sans bond d'une image.
+        Spring.Step(ref _punchSoft, ref _punchVel, _punch, 30, dt);
         for (int i = 0; i < _echoes; i++)
         {
             _echoAge[i] += (float)dt;
@@ -110,7 +120,7 @@ internal sealed class RingModule : VisualizerModule
         }
     }
 
-    private float BaseRadius => (0.3f + 0.12f * _bass) * (1 + 0.15f * _punch);
+    private float BaseRadius => (0.3f + 0.12f * _bass) * (1 + 0.15f * _punchSoft);
 
     public override void Render(SKCanvas canvas, SKRect rect, RenderContext ctx)
     {
@@ -181,7 +191,7 @@ internal sealed class RingModule : VisualizerModule
             }
         }
         // Contour des pointes, en filigrane, et voile coloré à l'intérieur.
-        _fill.Color = t.Spectral(0.2f + 0.3f * _bass).WithAlpha((byte)(0x30 + 0x40 * _punch));
+        _fill.Color = t.Spectral(0.2f + 0.3f * _bass).WithAlpha((byte)(0x30 + 0x40 * _punchSoft));
         canvas.DrawPath(_path, _fill);
         _stroke.Color = t.Spectral(0.9f).WithAlpha(0x70);
         canvas.DrawPath(_path, _stroke);
@@ -191,7 +201,7 @@ internal sealed class RingModule : VisualizerModule
     /// <summary>Cœur : cercle en pointillés qui tourne en sens inverse, plus vif sur les temps forts.</summary>
     private void DrawCore(SKCanvas canvas, float cx, float cy, float rx, float ry, float baseR, int p, Theme t)
     {
-        _fill.Color = t.Spectral(1f).WithAlpha((byte)(150 + 105 * _punch));
+        _fill.Color = t.Spectral(1f).WithAlpha((byte)(150 + 105 * _punchSoft));
         float core = baseR * 0.6f;
         for (int i = 0; i < 12; i++)
         {
@@ -236,7 +246,7 @@ internal sealed class RingModule : VisualizerModule
         // Le contour du moment, plein, devant.
         float baseR = BaseRadius;
         Outline(_v, baseR, _angle, 1, cx, cy, rx, ry);
-        _fill.Color = t.Spectral(0.2f + 0.3f * _bass).WithAlpha((byte)(0x40 + 0x40 * _punch));
+        _fill.Color = t.Spectral(0.2f + 0.3f * _bass).WithAlpha((byte)(0x40 + 0x40 * _punchSoft));
         canvas.DrawPath(_path, _fill);
         _stroke.Color = t.Spectral(1f);
         canvas.DrawPath(_path, _stroke);
@@ -251,9 +261,9 @@ internal sealed class RingModule : VisualizerModule
         float inset = Math.Max(p, ctx.EdgeInset * 0.6f);
         float cx = rect.MidX;
         // Temps fort : l'anneau saute (le sol remonte, s'ouvre) et les barres grandissent un instant.
-        float floorY = rect.Top + rect.Height * (0.7f - 0.06f * _punch);
-        float rx = rect.Width / 2 - inset - p, ry = rect.Height * 0.2f * (1 + 0.3f * _punch);
-        float tall = rect.Height * 0.62f * (1 + 0.15f * _punch);
+        float floorY = rect.Top + rect.Height * (0.7f - 0.06f * _punchSoft);
+        float rx = rect.Width / 2 - inset - p, ry = rect.Height * 0.2f * (1 + 0.3f * _punchSoft);
+        float tall = rect.Height * 0.62f * (1 + 0.15f * _punchSoft);
         const int Count = 64;
         int half = _v.Length;
 
@@ -286,7 +296,7 @@ internal sealed class RingModule : VisualizerModule
                 canvas.DrawRect(x, y, p, p, _fill);
                 if (h >= p)
                 {
-                    _fill.Color = t.Spectral(Math.Min(1, 0.25f + 0.75f * v + 0.2f * _punch)).WithAlpha(alpha);
+                    _fill.Color = t.Spectral(Math.Min(1, 0.25f + 0.75f * v + 0.2f * _punchSoft)).WithAlpha(alpha);
                     float w = depth > 0.75f ? 2 * p : p;
                     canvas.DrawRect(x, y - h, w, h, _fill);
                 }
