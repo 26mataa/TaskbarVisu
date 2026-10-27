@@ -130,7 +130,7 @@ internal sealed class RawDataModule : VisualizerModule
         }
         else
         {
-            // Lignes de texte du bas (la plus récente) vers le haut, qui s'estompent en remontant.
+            // Lignes de texte du bas (la plus récente) vers le haut, chacune teintée par son niveau, qui s'estompent en remontant.
             float lineH = ctx.Labels.CapHeight + 2 * p;
             int visible = Math.Max(1, (int)((rect.Height + 2 * p) / lineH));
             float x = MathF.Round(rect.Left + Math.Max(p, ctx.EdgeInset));
@@ -139,7 +139,7 @@ internal sealed class RawDataModule : VisualizerModule
                 var (text, level) = _lines[_lines.Count - 1 - i];
                 float y = MathF.Round(rect.Bottom - (i + 1) * lineH + p);
                 byte alpha = (byte)(255 - i * 180 / Math.Max(1, visible));
-                ctx.Labels.Draw(canvas, text, x, y, (i == 0 ? t.Spectral(Math.Clamp(level * 1.4f, 0.1f, 1f)) : t.Ink).WithAlpha(alpha));
+                ctx.Labels.Draw(canvas, text, x, y, t.Spectral(Math.Clamp(level * 1.4f, 0.1f, 1f)).WithAlpha(alpha));
             }
         }
 

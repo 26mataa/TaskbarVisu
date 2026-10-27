@@ -93,7 +93,7 @@ internal sealed class SavedStyle
 
 internal sealed class AppSettings
 {
-    public const int CurrentVersion = 6;
+    public const int CurrentVersion = 7;
     public const int MaxModuleWidth = 400;
     public const int MaxStyles = 24;
     /// <summary>Cycle le plus court de l'animation des couleurs (clignotement rapide), en secondes.</summary>
@@ -249,6 +249,12 @@ internal sealed class AppSettings
         {
             // v0.9.0 → v0.9.1 : l'animation devient un réglage ; l'arc-en-ciel animé gardait son défilement.
             Animation = ColorAnimation.Flow;
+        }
+        if (Version < 7)
+        {
+            // v0.9.1 → v0.9.2 : l'imageur perd son vectorscope ; « Aucune » seconde vue (vectorscope seul) devient le panorama.
+            foreach (var m in AllModules)
+                if (m.Id == "imager" && m.Options.TryGetValue("view", out var view) && view >= 2) m.Options["view"] = 0;
         }
         Version = CurrentVersion;
 

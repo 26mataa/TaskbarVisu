@@ -18,12 +18,17 @@ posés dans les espaces libres à gauche et à droite des icônes, sans cadre.
 | **Niveaux crête + LUFS** | Crête-mètre L/R à segments, graduations, maintien des crêtes, écrêtage, sonie BS.1770 avec cible et lecture inversée |
 | **VU-mètre** | Style LED (arc à segments, tête lumineuse et traînée) ou analogique (aiguille), balistique ~300 ms, mono ou stéréo |
 | **Analyseur de spectre** | Relief façon MiniMeters (courbe lissée ombrée selon le niveau, trace fine du canal « côtés »), barres, points LED, courbe remplie ou ligne ; crêtes maintenues ; lecture du pic (niveau, fréquence, note) |
-| **Imageur stéréo** | Vectorscope polaire coloré par bande + panorama par fréquence (ou largeur par fréquence) ; corrélation en axe coloré ou en barre |
+| **Imageur stéréo** | Panorama par fréquence (graves en bas, aigus en haut, gauche → droite) ou largeur par fréquence ; corrélation en axe coloré ou en barre |
 | **Historique de sonie** | Courbe LUFS sur 15 s à 5 min (barres LED ou courbe), ligne de cible |
-| **Accordeur** | 2 modes : note + justesse (±50 cents), tonalité (gamme) avec confiance et, pour un morceau modal, sa note centrale (« ◆F MIX ») ; mini-piano LED, notation C D E, Do Ré Mi ou Camelot ; en option, les tonalités précédentes du morceau (« <C <Aᵐ ») |
+| **Accordeur** | 2 modes : note + justesse (±50 cents), tonalité (gamme) avec confiance et, pour un morceau modal, sa note centrale (« ◆F MIX ») ; mini-piano LED, notation C D E, Do Ré Mi ou Camelot ; en option, les tonalités précédentes du morceau (« <C <Aᵐ ») ; ou la note seule, en grand au centre |
 | **Piano roll** | Notes réellement entendues, octave comprise, justes à quelques cents (analyse dédiée en deux résolutions), sur un clavier de 3 à 6 octaves ; leur historique défile au-dessus (couleur selon la hauteur ou l'intensité, clavier en bas ou en haut) |
 | **Oscilloscope XY** | Goniomètre (milieu / côtés) ou Lissajous (gauche / droite) tracé en phosphore qui s'éteint lentement, réticule gradué |
 | **Données brutes** | Les échantillons tels que la carte son les voit : lignes hexadécimales qui défilent ou matrice de bits. Purement expérimental |
+| **Cascade** | Une ligne de spectre par instant, empilées en perspective comme des montagnes qui reculent (façon « Unknown Pleasures ») |
+| **Horizon synthwave** | Grille au sol qui file vers l'horizon, montagnes = spectre, soleil rayé qui grossit avec les basses |
+| **Hyperespace** | Champ d'étoiles qui fonce vers vous : chaque fréquence fait naître ses étoiles, la vitesse suit le volume et bondit sur les temps forts |
+| **Mélodie** | La note dominante laisse une traînée lumineuse sur une grille de notes, glissés compris |
+| **Anneau** | Le spectre enroulé en cercle : il respire sur les basses, tourne du côté de la stéréo, une onde à chaque temps fort |
 
 Disposition par défaut : niveaux, spectrogramme et spectre à gauche ; imageur, accordeur et forme d'onde
 à droite. VU-mètre, historique de sonie, piano roll, oscilloscope XY et données brutes
@@ -124,7 +129,7 @@ la trace liste aussi les pics de chaque image (fréquence:amplitude:part non exp
 
 ## Apparence
 
-- Préréglages en un clic : Labo, MiniMeters, CRT Phosphore, Synthwave, Vaporwave, Chrome Y2K, Toxique, RGB,
+- Préréglages en un clic : Labo, Brasier, CRT Phosphore, Synthwave, Vaporwave, Chrome Y2K, Toxique, RGB,
   et trois afficheurs matériels : VFD (tube fluorescent cyan), LCD (encre sombre sur fond olive), Nixie
   (tubes orange).
 - Police pixel 5×7 (ou monospace lissée), graduations et repères techniques, effet scanlines.
@@ -278,7 +283,7 @@ src/TaskbarVisu/
   Dsp/         FFT, LUFS (BS.1770), tonalité, notes jouées et crible harmonique, analyse hors ligne
   Taskbar/     localisation de la barre, zones libres (UI Automation + fenêtres tierces)
   Rendering/   fenêtres overlay, boucle de rendu, thème, disposition, caches, animation d'allumage
-  Modules/     les 11 visualiseurs + catalogue d'options
+  Modules/     les 16 visualiseurs + catalogue d'options
   UI/          fenêtre de réglages, icône de notification
   Core/        réglages, traductions, démarrage avec Windows, journal, raccourci, mises à jour, codes de style
 installer/     script de l'installeur (Inno Setup)

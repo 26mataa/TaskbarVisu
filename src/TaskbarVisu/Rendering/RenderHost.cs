@@ -107,6 +107,11 @@ internal sealed partial class RenderHost : IDisposable
     /// <summary>Diagnostic (--dump dossier) : enregistre régulièrement le rendu des zones en PNG.</summary>
     public string? DumpDirectory { get; set; }
 
+    /// <summary>Diagnostic : intervalle des images de --dump (5 s ; variable TASKBARVISU_DUMP_SECONDS pour des rendus image par image).</summary>
+    private static readonly double DumpSeconds =
+        double.TryParse(Environment.GetEnvironmentVariable("TASKBARVISU_DUMP_SECONDS"), System.Globalization.NumberStyles.Float,
+            System.Globalization.CultureInfo.InvariantCulture, out var s) ? Math.Clamp(s, 0.05, 60) : 5;
+
     /// <summary>Diagnostic (--headless) : rendu en mémoire uniquement, aucune fenêtre affichée.</summary>
     public bool Headless { get; set; }
 
@@ -242,7 +247,7 @@ internal sealed partial class RenderHost : IDisposable
 
             if (DumpDirectory is not null && now >= nextDump)
             {
-                nextDump = now + 5;
+                nextDump = now + DumpSeconds;
                 Dump(DumpDirectory);
             }
             // Diagnostic : trois images de l'animation d'allumage (balayage, retour, fondu).

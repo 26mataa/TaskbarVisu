@@ -16,7 +16,7 @@ internal static class StylePresets
     public static readonly StylePreset[] All =
     {
         new("Labo", PaletteChoice.Magma, true, true, BackgroundChoice.None, ColorChoice.Default),
-        new("MiniMeters", PaletteChoice.Brasier, false, false, BackgroundChoice.None, ColorChoice.Default),
+        new("Brasier", PaletteChoice.Brasier, false, false, BackgroundChoice.None, ColorChoice.Default),
         new("CRT Phosphore", PaletteChoice.Phosphore, true, true, BackgroundChoice.None, ColorChoice.Palette),
         new("Synthwave", PaletteChoice.Synthwave, true, true, BackgroundChoice.None, ColorChoice.Palette),
         new("Vaporwave", PaletteChoice.Vaporwave, false, true, BackgroundChoice.None, ColorChoice.Palette),

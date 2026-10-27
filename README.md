@@ -25,13 +25,18 @@ drawn straight into the empty space on each side of your icons, in a dot-matrix 
 | **Spectrogram** | scrolling frequency history, coloured by intensity |
 | **Spectrum** | MiniMeters-style relief (smooth curve shaded by level, stereo side trace), bars, LED dots, filled curve or line; held peaks, peak readout (level, frequency, note) |
 | **VU meter** | LED arc or analogue needle, ~300 ms ballistics, mono or stereo |
-| **Stereo imager** | polar vectorscope by band + panorama/width per frequency, phase correlation |
-| **Tuner / key** | note + cents, or the song's key on a mini piano (English, solfège or Camelot), with key history |
+| **Stereo imager** | where each frequency sits between left and right (lows at the bottom, highs at the top), or stereo width per frequency; phase correlation |
+| **Tuner / key** | note + cents, or the song's key on a mini piano (English, solfège or Camelot), with key history; or just the note, large and centred |
 | **Waveform** | mirror, envelope or triggered oscilloscope |
 | **Loudness history** | LUFS over 15 s to 5 min against your target |
 | **Piano roll** | the notes actually played, octave included, on a 3–6 octave keyboard with scrolling history: dedicated two-resolution FFT, peaks accurate to a few cents, harmonics sieved out |
 | **XY oscilloscope** | goniometer or Lissajous drawn in phosphor that fades like a CRT |
 | **Raw data** | the samples as your sound card sees them, in scrolling hex or a bit matrix. Purely experimental |
+| **Waterfall** | one spectrum line per moment, stacked in perspective like receding mountains (“Unknown Pleasures”) |
+| **Synthwave horizon** | a floor grid racing to the horizon, spectrum mountains, a striped sun that swells with the bass |
+| **Hyperspace** | a starfield rushing at you: each frequency spawns its stars, speed follows the volume and jumps on the beat |
+| **Melody** | the dominant note leaves a glowing trail on a note grid, slides included |
+| **Ring** | the spectrum wrapped into a circle that breathes with the bass, turns towards the stereo side, ripples on each beat |
 
 The *Layout* page shows your taskbar in miniature, modules to scale: click one to set its width, drag it
 to reorder or switch sides, or group them all in the middle when your icons are left-aligned. Each module
@@ -60,7 +65,7 @@ Replay it from *Home* or *General*.
 
 ![Settings window](docs/settings.png)
 
-One-click presets (Lab, MiniMeters-like, CRT Phosphor, Synthwave, Vaporwave, Chrome Y2K, Toxic, RGB,
+One-click presets (Lab, Ember, CRT Phosphor, Synthwave, Vaporwave, Chrome Y2K, Toxic, RGB,
 and hardware looks: VFD, LCD, Nixie), 16 palettes including RGB, a colour animation for any palette
 (scroll up or down, one colour at a time, back and forth, breathing pulse; 0.2 to 60 s per cycle), custom
 gradients of 2 to 8 colours (global or per module), real colour picker, pixel or smooth font, scanlines,

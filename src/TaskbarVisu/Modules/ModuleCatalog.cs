@@ -152,17 +152,14 @@ internal static class ModuleCatalog
             () => new SpectrumModule()),
 
         new("imager", "Imageur stéréo",
-            "Où se place le son entre gauche et droite. Demi-cercle : mono au centre, gauche / droite sur les diagonales.",
-            DefaultModuleWidth, 80,
+            "Où se place le son entre gauche et droite, fréquence par fréquence : graves en bas, aigus en haut, mono au centre.",
+            DefaultModuleWidth, 60,
             new[]
             {
-                Choice("view", "Seconde vue", 0, new[] { "Panorama par fréquence", "Largeur par fréquence", "Aucune" },
+                Choice("view", "Vue", 0, new[] { "Panorama par fréquence", "Largeur par fréquence" },
                     help: "Panorama : graves en bas, aigus en haut, gauche → droite."),
-                Toggle("bands", "Points colorés par bande (graves / médiums / aigus)", true),
                 Choice("correlation", "Corrélation de phase", 0, new[] { "Axe central coloré", "Barre", "Masquée" }, advanced: true,
                     help: "Rouge = son en opposition de phase (il s'annule en mono)."),
-                Slider("persistence", "Rémanence", 0.5, 0, 1, 0.05, advanced: true),
-                Slider("dots", "Densité de points", 900, 150, 3000, 50, advanced: true),
             },
             () => new StereoImagerModule()),
 
@@ -188,6 +185,8 @@ internal static class ModuleCatalog
                     help: "Note : 100 cents = un demi-ton. Tonalité : estimée sur les dernières secondes de musique ; ◆ = note où se pose un morceau modal (◆F MIX = Fa mixolydien)."),
                 Choice("notation", "Notation", 0, new[] { "Anglaise (C D E)", "Latine (Do Ré Mi)", "Camelot (8A, 8B)" },
                     help: "Camelot : la roue des DJ pour mixer des morceaux compatibles (mode tonalité)."),
+                Toggle("noteOnly", "Note seule", false,
+                    help: "Seulement la note (ou la tonalité) en grand, au centre : sans jauge de justesse ni mini-piano."),
                 Slider("keyMemory", "Mémoire de la tonalité", 30, 5, 90, 1, "s", advanced: true,
                     help: "Plus long = plus stable, plus court = suit plus vite les changements de tonalité."),
                 Slider("reference", "La de référence", 440, 415, 466, 1, "Hz", advanced: true),
@@ -233,6 +232,59 @@ internal static class ModuleCatalog
                 Slider("speed", "Vitesse de défilement", 30, 5, 120, 5),
             },
             () => new RawDataModule()),
+
+        new("waterfall", "Cascade",
+            "Une ligne de spectre par instant, empilées en perspective comme des montagnes qui reculent (façon « Unknown Pleasures »).",
+            DefaultModuleWidth, 60,
+            new[]
+            {
+                Slider("speed", "Lignes par seconde", 12, 3, 30, 1),
+                Slider("lines", "Nombre de lignes", 10, 6, 24, 1),
+                Toggle("perspective", "Perspective", true),
+                Slider("floor", "Plancher", -80, -110, -50, 1, "dB", advanced: true, help: "Ce qui est plus faible reste plat."),
+            },
+            () => new WaterfallModule()),
+
+        new("horizon", "Horizon synthwave",
+            "Une grille au sol qui file vers l'horizon ; les montagnes au loin sont le spectre, le soleil grossit avec les basses.",
+            DefaultModuleWidth, 60,
+            new[]
+            {
+                Slider("speed", "Vitesse du sol", 1, 0.2, 3, 0.1, "×"),
+                Toggle("sun", "Soleil", true),
+            },
+            () => new HorizonModule()),
+
+        new("starfield", "Hyperespace",
+            "Un champ d'étoiles qui fonce vers vous : chaque fréquence fait naître ses étoiles, la vitesse suit le volume.",
+            DefaultModuleWidth, 50,
+            new[]
+            {
+                Slider("speed", "Vitesse", 1, 0.2, 3, 0.1, "×"),
+                Slider("density", "Densité d'étoiles", 60, 10, 200, 5),
+                Toggle("trails", "Traînées", true),
+            },
+            () => new StarfieldModule()),
+
+        new("melody", "Mélodie",
+            "La note dominante laisse une traînée lumineuse sur une grille de notes : la mélodie se dessine, glissés compris.",
+            DefaultModuleWidth, 60,
+            new[]
+            {
+                Slider("speed", "Vitesse de défilement", 40, 10, 150, 5, "px/s"),
+                Choice("range", "Étendue", 0, new[] { "2 octaves", "3 octaves" }),
+            },
+            () => new MelodyModule()),
+
+        new("ring", "Anneau",
+            "Le spectre enroulé en cercle : il respire sur les basses, tourne du côté de la stéréo, et chaque temps fort laisse une onde.",
+            60, 30,
+            new[]
+            {
+                Slider("spin", "Rotation", 1, 0, 3, 0.1, "×"),
+                Toggle("stretch", "Étirer sur toute la largeur", false),
+            },
+            () => new RingModule()),
     };
 
     public static ModuleInfo? Find(string id)

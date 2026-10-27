@@ -188,9 +188,12 @@ internal sealed class TunerModule : VisualizerModule
         int factor = rect.Height >= 24 * p ? 2 : 1;
         float noteW = Math.Max(ctx.Labels.Measure(Latin ? "SOL#8" : "G#8", factor), ctx.Labels.Measure(note, factor));
         var size = LabelCache.Size(ctx, note, 0, 0, factor);
-        float noteX = MathF.Round(rect.Left + inset);
+        // Note seule : centrée, sans jauge.
+        bool alone = Flag("noteOnly");
+        float noteX = MathF.Round(alone ? rect.MidX - size.Width / 2 : rect.Left + inset);
         _big.Draw(canvas, ctx, note, noteX, MathF.Round(rect.MidY - size.Height / 2),
             inTune ? t.Spectral(1f) : active ? t.Ink : t.InkDim, factor: factor);
+        if (alone) return;
 
         // Jauge de justesse à droite.
         float gx0 = noteX + noteW + 4 * p;
@@ -264,7 +267,10 @@ internal sealed class TunerModule : VisualizerModule
         float bigW = Math.Max(ctx.Labels.Measure(Latin ? "SOL#" : Notation == 2 ? "12A" : "G#", factor), ctx.Labels.Measure(big, factor));
         float smallW = Math.Max(Math.Max(ctx.Labels.Measure("MAJ?"), ctx.Labels.Measure(small)),
             detail is null ? 0 : ctx.Labels.Measure(detail));
-        float x = MathF.Round(rect.Left + inset);
+        // Note seule : nom et qualité centrés, sans mini-piano.
+        bool alone = Flag("noteOnly");
+        float groupW = ctx.Labels.Measure(big, factor) + 2 * p + smallW;
+        float x = MathF.Round(alone ? rect.MidX - groupW / 2 : rect.Left + inset);
         var bigSize = LabelCache.Size(ctx, big, 0, 0, factor);
         float bigY = MathF.Round(rect.MidY - bigSize.Height / 2);
         _big.Draw(canvas, ctx, big, x, bigY, active ? t.Spectral(1f) : t.InkDim, factor: factor);
@@ -276,6 +282,8 @@ internal sealed class TunerModule : VisualizerModule
             float y2 = bigY + ctx.Labels.CapHeight + 2 * p;
             if (y2 + ctx.Labels.CapHeight <= rect.Bottom) _small2.Draw(canvas, ctx, detail, smallX, y2, detailStrong ? t.Ink : t.InkDim);
         }
+
+        if (alone) return;
 
         // Mini-piano.
         float px0 = x + bigW + smallW + 5 * p;

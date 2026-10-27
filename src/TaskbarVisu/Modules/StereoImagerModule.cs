@@ -5,40 +5,19 @@ using TaskbarVisu.Rendering;
 namespace TaskbarVisu.Modules;
 
 /// <summary>
-/// Imageur stéréo pensé pour l'horizontal :
-/// - vectorscope polaire en demi-cercle (mono = vertical, L / R à 45°, hors phase sur les côtés),
-///   points colorés par bande ;
-/// - seconde vue au choix : panorama par fréquence (graves en bas, aigus en haut, gauche → droite)
-///   ou largeur stéréo par fréquence ;
+/// Imageur stéréo pensé pour l'horizontal, sur toute la largeur du module :
+/// - panorama par fréquence (graves en bas, aigus en haut, gauche → droite), en points LED ;
+/// - ou largeur stéréo par fréquence ;
 /// - corrélation de phase en axe central coloré (ou en barre).
 /// </summary>
 internal sealed class StereoImagerModule : VisualizerModule
 {
-    private const int Frames = 4;
-    private const int Bands = 3;
     private const float PanMinF = 40, PanMaxF = 16000;
-    private static readonly SKPoint Offscreen = new(-10000, -10000);
-    private static readonly float[] BandTone = { 0.05f, 0.5f, 0.95f };
 
-    // Sous ~-70 dBFS (bruit de fond, dither), l'imageur se tait : la normalisation amplifierait ce bruit
-    // en nuage de points et le module ne passerait jamais au repos.
+    // Sous ~-70 dBFS (bruit de fond, dither), l'imageur se tait : le module peut passer au repos.
     private const float Gate = 3e-4f;
-    // Gain maximal de la normalisation : il faut au moins ~-50 dBFS pour remplir le demi-cercle.
-    private const float EnvFloor = 3e-3f;
 
-    // Points normalisés (x ∈ [-1, 1], y ∈ [0, 1]) par bande et par image, pour la rémanence.
-    private readonly SKPoint[,][] _points = new SKPoint[Bands, Frames][];
-    private readonly int[,] _counts = new int[Bands, Frames];
-    private int _head;
-    private SKPoint[] _screen = Array.Empty<SKPoint>();
-    private int _screenUsed;
-    private float _env = EnvFloor;
     private double _quiet; // secondes passées sous le seuil Gate
-
-    // Séparation en 3 bandes (filtres à un pôle à 250 Hz et 2,5 kHz) pour chaque canal.
-    private int _filterRate;
-    private float _k1, _k2, _l1, _l2, _r1, _r2;
-
     private double _sLR, _sLL, _sRR;
     private float _corr, _corrAlpha;
 
@@ -53,28 +32,18 @@ internal sealed class StereoImagerModule : VisualizerModule
     private float[] _mid = Array.Empty<float>(), _side = Array.Empty<float>();
     private float[] _width = Array.Empty<float>(), _alpha = Array.Empty<float>();
 
-    // Points sans anticrénelage : bien plus rapide et invisible à cette taille.
-    private readonly SKPaint _dots = new() { IsAntialias = false, StrokeCap = SKStrokeCap.Square, Style = SKPaintStyle.Stroke };
-    private readonly SKPaint _guide = new() { IsAntialias = true, Style = SKPaintStyle.Stroke };
     private readonly SKPaint _fill = new() { IsAntialias = false, Style = SKPaintStyle.Fill };
-    private readonly SKPath _path = new();
-    private readonly LayerCache _guides = new();
     private readonly LayerCache _corrTrack = new();
 
-    public StereoImagerModule() : base("imager")
-    {
-        for (int b = 0; b < Bands; b++)
-            for (int f = 0; f < Frames; f++)
-                _points[b, f] = Array.Empty<SKPoint>();
-    }
+    public StereoImagerModule() : base("imager") { }
 
-    private int View => OptI("view");
+    /// <summary>0 = panorama, 1 = largeur (l'ancien choix « Aucune », vectorscope seul, retombe sur le panorama).</summary>
+    private int View => OptI("view") == 1 ? 1 : 0;
 
     public override bool IsIdle
     {
         get
         {
-            foreach (var c in _counts) if (c > 0) return false;
             if (_corrAlpha > 0.01f) return false;
             foreach (var a in _alpha) if (a > 0.01f) return false;
             return _panMax < 0.01f;
@@ -83,15 +52,15 @@ internal sealed class StereoImagerModule : VisualizerModule
 
     protected override void OnResize()
     {
-        _columns = Math.Max(6, (int)(Width * 0.4f / (3 * Px)));
+        _columns = Math.Max(6, Width / (3 * Px));
         _mid = new float[_columns];
         _side = new float[_columns];
         _width = new float[_columns];
         _alpha = new float[_columns];
 
         // Cellules de 3 px ; nombre de colonnes impair pour avoir une colonne « centre ».
-        int panWidth = (int)(Width * 0.42f);
-        _panCols = Math.Max(7, panWidth / (3 * Px)) | 1;
+        _panCols = Math.Max(7, (Width - 2 * Px) / (3 * Px)) | 1;
+        if (_panCols * 3 * Px > Width) _panCols -= 2;
         _panRows = Math.Max(5, (Height - 2 * Px) / (3 * Px));
         _panAcc = new float[_panCols * _panRows];
         _pan = new float[_panCols * _panRows];
@@ -102,13 +71,6 @@ internal sealed class StereoImagerModule : VisualizerModule
         int n = audio.Count;
         var left = audio.Left;
         var right = audio.Right;
-
-        if (audio.SampleRate != _filterRate)
-        {
-            _filterRate = audio.SampleRate;
-            _k1 = 1f - MathF.Exp(-2f * MathF.PI * 250f / _filterRate);
-            _k2 = 1f - MathF.Exp(-2f * MathF.PI * 2500f / _filterRate);
-        }
 
         // Corrélation (moyenne glissante ~300 ms).
         double lr = 0, ll = 0, rr = 0;
@@ -128,72 +90,17 @@ internal sealed class StereoImagerModule : VisualizerModule
         _corr += (Math.Clamp(target, -1, 1) - _corr) * smooth;
         _corrAlpha += ((audible ? 1 : 0) - _corrAlpha) * smooth;
 
-        UpdateScope(audio, dt, n, left, right);
-
-        switch (View)
+        if (View == 1)
         {
-            case 0:
-                UpdatePanorama(audio, dt);
-                Array.Clear(_alpha);
-                break;
-            case 1:
-                UpdateWidth(audio, dt);
-                DecayPanorama(dt);
-                break;
-            default:
-                Array.Clear(_alpha);
-                DecayPanorama(dt);
-                break;
+            UpdateWidth(audio, dt);
+            DecayPanorama(dt);
         }
-    }
-
-    private void UpdateScope(AudioAnalyzer audio, double dt, int n, float[] left, float[] right)
-    {
-        bool bands = Flag("bands");
-        int bandCount = bands ? Bands : 1;
-        int capacity = Math.Max(16, OptI("dots") / bandCount);
-        _head = (_head + 1) % Frames;
-        for (int b = 0; b < Bands; b++)
+        else
         {
-            if (_points[b, _head].Length != capacity) _points[b, _head] = new SKPoint[capacity];
-            _counts[b, _head] = 0;
+            if (_quiet > 0.3) DecayPanorama(dt);
+            else UpdatePanorama(audio, dt);
+            Array.Clear(_alpha);
         }
-
-        float peak = MathF.Sqrt(audio.PeakL * audio.PeakL + audio.PeakR * audio.PeakR);
-        _env = Math.Max(Math.Max(peak, EnvFloor), _env * (float)Math.Exp(-dt / 2.0));
-        bool gated = _quiet > 0;
-        int step = Math.Max(1, (n + capacity - 1) / capacity);
-
-        for (int i = 0; i < n; i++)
-        {
-            float l = left[i], r = right[i];
-            _l1 += _k1 * (l - _l1); _l2 += _k2 * (l - _l2);
-            _r1 += _k1 * (r - _r1); _r2 += _k2 * (r - _r2);
-            if (gated || i % step != 0) continue;
-
-            if (!bands)
-            {
-                Add(0, l, r);
-                continue;
-            }
-            Add(0, _l1, _r1);
-            Add(1, _l2 - _l1, _r2 - _r1);
-            Add(2, l - _l2, r - _r2);
-        }
-    }
-
-    private void Add(int band, float l, float r)
-    {
-        int count = _counts[band, _head];
-        var pts = _points[band, _head];
-        if (count >= pts.Length) return;
-        float x = (r - l) * 0.70710677f, y = (l + r) * 0.70710677f;
-        if (y < 0) { x = -x; y = -y; }
-        float radius = MathF.Sqrt(x * x + y * y);
-        if (radius < 1e-5f) return;
-        float rn = MathF.Sqrt(Math.Min(1f, radius / _env));
-        pts[count] = new SKPoint(x / radius * rn, y / radius * rn);
-        _counts[band, _head] = count + 1;
     }
 
     /// <summary>
@@ -279,135 +186,26 @@ internal sealed class StereoImagerModule : VisualizerModule
     public override void Render(SKCanvas canvas, SKRect rect, RenderContext ctx)
     {
         int p = ctx.P;
-        int view = View;
         bool corrBar = OptI("correlation") == 1;
         float corrH = corrBar ? Math.Max(3 * p, MathF.Round(rect.Height * 0.14f)) : 0;
         float corrGap = corrBar ? 2 * p : 0;
+        float inset = MathF.Ceiling(Math.Max(p, ctx.EdgeInset * 0.5f));
 
-        SKRect scopeRect, sideRect = SKRect.Empty, corrRect = SKRect.Empty;
-        if (view == 2)
+        var view = new SKRect(rect.Left + inset, rect.Top + p, rect.Right - inset, rect.Bottom - corrH - corrGap);
+        if (view.Width > 4)
         {
-            scopeRect = new SKRect(rect.Left, rect.Top, rect.Right, rect.Bottom - corrH - corrGap);
-            if (corrBar) corrRect = new SKRect(rect.Left, rect.Bottom - corrH, rect.Right, rect.Bottom);
+            if (View == 1) DrawWidthSpectrum(canvas, view, ctx);
+            else DrawPanorama(canvas, view, ctx);
         }
-        else
-        {
-            float scopeW = MathF.Round(Math.Min(rect.Width * 0.56f, rect.Height * 2.2f));
-            scopeRect = new SKRect(rect.Left, rect.Top, rect.Left + scopeW, rect.Bottom);
-            float sideRight = rect.Right - MathF.Ceiling(Math.Max(p, ctx.EdgeInset * 0.5f));
-            sideRect = new SKRect(scopeRect.Right + 4 * p, rect.Top + p, sideRight, rect.Bottom - corrH - corrGap);
-            if (corrBar) corrRect = new SKRect(sideRect.Left, rect.Bottom - corrH, sideRect.Right, rect.Bottom);
-        }
-
-        if (scopeRect.Width > 4) DrawScope(canvas, scopeRect, ctx);
-        if (view == 0 && sideRect.Width > 4) DrawPanorama(canvas, sideRect, ctx);
-        if (view == 1 && sideRect.Width > 4) DrawWidthSpectrum(canvas, sideRect, ctx);
-        if (corrBar && corrRect.Width > 4) DrawCorrelation(canvas, corrRect, ctx);
+        if (corrBar && view.Width > 4) DrawCorrelation(canvas, new SKRect(view.Left, rect.Bottom - corrH, view.Right, rect.Bottom), ctx);
     }
 
     /// <summary>Couleur de l'axe « mono » selon la corrélation : normale, orange si faible, rouge si négative.</summary>
     private SKColor AxisColor(Theme t)
     {
-        if (OptI("correlation") != 0 || _corrAlpha < 0.05f) return t.Grid;
+        if (OptI("correlation") != 0 || _corrAlpha < 0.05f) return t.GridFaint;
         var c = _corr < 0 ? t.Hot : _corr < 0.3f ? t.Warn : t.InkDim;
         return c.WithAlpha((byte)(Math.Clamp(_corrAlpha, 0, 1) * c.Alpha));
-    }
-
-    private void DrawScope(SKCanvas canvas, SKRect r, RenderContext ctx)
-    {
-        var t = ctx.Theme;
-        int p = ctx.P;
-        float cx = MathF.Round(r.MidX);
-        float baseY = r.Bottom - p;
-        float halfW = r.Width / 2 - 2 * p;
-        float plotH = Math.Min(r.Height - 2 * p, halfW);
-        halfW = Math.Min(halfW, plotH * 2.2f);
-
-        // Repères statiques : demi-cercle, anneaux, diagonales L / R, secteurs hors phase, lettres.
-        var key = (t.Version, ctx.Labels.Key, ctx.ShowScales, r.Width, r.Height);
-        if (_guides.Begin((int)MathF.Ceiling(r.Width), (int)MathF.Ceiling(r.Height), key) is { } c)
-        {
-            c.Translate(-r.Left, -r.Top);
-            var outer = new SKRect(cx - halfW, baseY - plotH, cx + halfW, baseY + plotH);
-            var dl = new SKPoint(cx - 0.7071f * halfW, baseY - 0.7071f * plotH);
-            var dr = new SKPoint(cx + 0.7071f * halfW, baseY - 0.7071f * plotH);
-
-            // Secteurs « hors phase » (au-delà des diagonales L / R).
-            _fill.Color = t.GridFaint;
-            _path.Rewind();
-            _path.MoveTo(cx, baseY);
-            _path.ArcTo(outer, 180, 45, false);
-            _path.Close();
-            _path.MoveTo(cx, baseY);
-            _path.ArcTo(outer, 315, 45, false);
-            _path.Close();
-            c.DrawPath(_path, _fill);
-
-            _guide.StrokeWidth = p;
-            _guide.Color = t.Grid;
-            _path.Rewind();
-            _path.AddArc(outer, 180, 180);
-            _path.MoveTo(cx - halfW, baseY);
-            _path.LineTo(cx + halfW, baseY);
-            _path.MoveTo(cx, baseY);
-            _path.LineTo(dl);
-            _path.MoveTo(cx, baseY);
-            _path.LineTo(dr);
-            c.DrawPath(_path, _guide);
-
-            _guide.Color = t.GridFaint;
-            for (int ring = 1; ring <= 2; ring++)
-            {
-                float k = ring / 3f;
-                c.DrawArc(new SKRect(cx - halfW * k, baseY - plotH * k, cx + halfW * k, baseY + plotH * k), 180, 180, false, _guide);
-            }
-
-            if (ctx.ShowScales && r.Height >= 20 * p)
-            {
-                float cap = ctx.Labels.CapHeight;
-                ctx.Labels.Draw(c, "L", MathF.Round(dl.X - ctx.Labels.Measure("L") - 2 * p), MathF.Round(dl.Y - cap), t.InkDim);
-                ctx.Labels.Draw(c, "R", MathF.Round(dr.X + 2 * p), MathF.Round(dr.Y - cap), t.InkDim);
-            }
-        }
-        _guides.Draw(canvas, r.Left, r.Top);
-
-        // Axe mono : sa couleur indique la corrélation de phase.
-        _fill.Color = AxisColor(t);
-        canvas.DrawRect(cx, baseY - plotH, p, plotH, _fill);
-
-        float persistence = OptF("persistence");
-        bool bands = Flag("bands");
-        _dots.StrokeWidth = Math.Max(1f, MathF.Round(1.3f * ctx.Scale));
-        for (int age = Frames - 1; age >= 0; age--)
-        {
-            int f = (_head - age + Frames) % Frames;
-            float alpha = age == 0 ? 0.95f : persistence * 0.65f * (1f - age / (float)Frames);
-            if (alpha < 0.03f) continue;
-            for (int b = 0; b < (bands ? Bands : 1); b++)
-            {
-                int count = _counts[b, f];
-                if (count == 0) continue;
-                var color = bands ? t.Spectral(BandTone[b]) : t.Spectral(0.85f);
-                DrawPoints(canvas, _points[b, f], count, cx, baseY, halfW, plotH, color.WithAlpha((byte)(alpha * 255)));
-            }
-        }
-    }
-
-    private void DrawPoints(SKCanvas canvas, SKPoint[] pts, int count, float cx, float baseY, float halfW, float plotH, SKColor color)
-    {
-        if (_screen.Length != pts.Length)
-        {
-            _screen = new SKPoint[pts.Length];
-            Array.Fill(_screen, Offscreen);
-            _screenUsed = 0;
-        }
-        for (int i = 0; i < count; i++)
-            _screen[i] = new SKPoint(cx + pts[i].X * halfW, baseY - pts[i].Y * plotH);
-        // Les cases non utilisées sont renvoyées hors champ (évite d'allouer un tableau par image).
-        for (int i = count; i < _screenUsed; i++) _screen[i] = Offscreen;
-        _screenUsed = count;
-        _dots.Color = color;
-        canvas.DrawPoints(SKPointMode.Points, _screen, _dots);
     }
 
     /// <summary>Carte de chaleur en points LED : position gauche → droite en largeur, graves en bas, aigus en haut.</summary>
@@ -420,7 +218,7 @@ internal sealed class StereoImagerModule : VisualizerModule
 
         // Colonne centrale (mono) en repère, colorée par la corrélation.
         int center = _panCols / 2;
-        _fill.Color = AxisColor(t) == t.Grid ? t.GridFaint : AxisColor(t);
+        _fill.Color = AxisColor(t);
         canvas.DrawRect(MathF.Round(r.Left + center * cellW + dotW / 2 - p / 2f), r.Top, p, r.Height, _fill);
 
         for (int row = 0; row < _panRows; row++)
@@ -491,11 +289,7 @@ internal sealed class StereoImagerModule : VisualizerModule
 
     public override void Dispose()
     {
-        _dots.Dispose();
-        _guide.Dispose();
         _fill.Dispose();
-        _path.Dispose();
-        _guides.Dispose();
         _corrTrack.Dispose();
     }
 }

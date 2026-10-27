@@ -248,8 +248,9 @@ internal sealed class Theme
         },
         PaletteChoice.Nixie => new[]
         {
-            (0f, C(0x1A, 0x05, 0x00)), (0.3f, C(0x5C, 0x14, 0x00)), (0.6f, C(0xE0, 0x4A, 0x00)),
-            (0.85f, C(0xFF, 0x8A, 0x2A)), (1f, C(0xFF, 0xE0, 0xB0)),
+            // Une seule couleur, l'orange du néon : grille froide du tube éteint, puis le néon de plus en plus vif (sans rouge ni jaune).
+            (0f, C(0x1C, 0x14, 0x14)), (0.25f, C(0x4A, 0x1A, 0x08)), (0.55f, C(0xC4, 0x40, 0x04)),
+            (0.8f, C(0xFF, 0x6A, 0x12)), (0.93f, C(0xFF, 0x8E, 0x3E)), (1f, C(0xFF, 0xC8, 0x9A)),
         },
         PaletteChoice.Monochrome => MonoStops(Ink),
         PaletteChoice.Accent => MonoStops(AccentColor(false) ?? DefaultInkDark),
