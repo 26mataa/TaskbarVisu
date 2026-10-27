@@ -25,7 +25,6 @@ posés dans les espaces libres à gauche et à droite des icônes, sans cadre.
 | **Oscilloscope XY** | Goniomètre (milieu / côtés) ou Lissajous (gauche / droite) tracé en phosphore qui s'éteint lentement, réticule gradué |
 | **Données brutes** | Les échantillons tels que la carte son les voit : lignes hexadécimales qui défilent ou matrice de bits. Purement expérimental |
 | **Cascade** | Une ligne de spectre par instant, empilées en perspective comme des montagnes qui reculent (façon « Unknown Pleasures ») |
-| **Horizon synthwave** | Grille au sol qui file vers l'horizon, montagnes = spectre, soleil rayé qui grossit avec les basses |
 | **Hyperespace** | Champ d'étoiles qui fonce vers vous : chaque fréquence fait naître ses étoiles, la vitesse suit le volume et bondit sur les temps forts |
 | **Mélodie** | La note dominante laisse une traînée lumineuse sur une grille de notes, glissés compris |
 | **Anneau** | Le spectre enroulé en cercle : il respire sur les basses, tourne du côté de la stéréo, une onde à chaque temps fort |
@@ -283,7 +282,7 @@ src/TaskbarVisu/
   Dsp/         FFT, LUFS (BS.1770), tonalité, notes jouées et crible harmonique, analyse hors ligne
   Taskbar/     localisation de la barre, zones libres (UI Automation + fenêtres tierces)
   Rendering/   fenêtres overlay, boucle de rendu, thème, disposition, caches, animation d'allumage
-  Modules/     les 16 visualiseurs + catalogue d'options
+  Modules/     les 15 visualiseurs + catalogue d'options
   UI/          fenêtre de réglages, icône de notification
   Core/        réglages, traductions, démarrage avec Windows, journal, raccourci, mises à jour, codes de style
 installer/     script de l'installeur (Inno Setup)

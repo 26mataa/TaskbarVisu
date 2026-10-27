@@ -33,7 +33,6 @@ drawn straight into the empty space on each side of your icons, in a dot-matrix 
 | **XY oscilloscope** | goniometer or Lissajous drawn in phosphor that fades like a CRT |
 | **Raw data** | the samples as your sound card sees them, in scrolling hex or a bit matrix. Purely experimental |
 | **Waterfall** | one spectrum line per moment, stacked in perspective like receding mountains (“Unknown Pleasures”) |
-| **Synthwave horizon** | a floor grid racing to the horizon, spectrum mountains, a striped sun that swells with the bass |
 | **Hyperspace** | a starfield rushing at you: each frequency spawns its stars, speed follows the volume and jumps on the beat |
 | **Melody** | the dominant note leaves a glowing trail on a note grid, slides included |
 | **Ring** | the spectrum wrapped into a circle that breathes with the bass, turns towards the stereo side, ripples on each beat |

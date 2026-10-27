@@ -245,16 +245,6 @@ internal static class ModuleCatalog
             },
             () => new WaterfallModule()),
 
-        new("horizon", "Horizon synthwave",
-            "Une grille au sol qui file vers l'horizon ; les montagnes au loin sont le spectre, le soleil grossit avec les basses.",
-            DefaultModuleWidth, 60,
-            new[]
-            {
-                Slider("speed", "Vitesse du sol", 1, 0.2, 3, 0.1, "×"),
-                Toggle("sun", "Soleil", true),
-            },
-            () => new HorizonModule()),
-
         new("starfield", "Hyperespace",
             "Un champ d'étoiles qui fonce vers vous : chaque fréquence fait naître ses étoiles, la vitesse suit le volume.",
             DefaultModuleWidth, 50,
