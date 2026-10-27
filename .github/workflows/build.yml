@@ -1,0 +1,58 @@
+# Compile la release sur GitHub (exe autonome, zip portable, installeur) avec tools\build-release.ps1.
+# Une build faite ici, à partir du code du dépôt, est ce qu'exige la signature gratuite SignPath Foundation :
+# une fois le projet accepté, l'étape « Signature » ci-dessous s'active avec les secrets SIGNPATH_*.
+# Rien n'est publié : les fichiers restent en artefacts de la build, à télécharger depuis l'onglet Actions.
+name: Build
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Inno Setup
+        run: choco install innosetup --no-progress -y
+
+      - name: Build
+        shell: pwsh
+        run: ./tools/build-release.ps1
+
+      - name: Fichiers à signer
+        id: unsigned
+        uses: actions/upload-artifact@v4
+        with:
+          name: TaskbarVisu-unsigned
+          path: |
+            build/*-portable.zip
+            build/*-setup.exe
+            build/SHA256SUMS.txt
+
+      # Signature (SignPath Foundation, gratuite pour l'open source) : à activer une fois le projet accepté,
+      # en créant les secrets SIGNPATH_API_TOKEN et la variable SIGNPATH_ORGANIZATION_ID du dépôt.
+      - name: Signature
+        if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' }}
+        uses: signpath/github-action-submit-signing-request@v1
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: TaskbarVisu
+          signing-policy-slug: release-signing
+          github-artifact-id: ${{ steps.unsigned.outputs.artifact-id }}
+          wait-for-completion: true
+          output-artifact-directory: signed
+
+      - name: Fichiers signés
+        if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: TaskbarVisu-signed
+          path: signed
