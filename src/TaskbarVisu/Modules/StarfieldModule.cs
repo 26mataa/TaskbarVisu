@@ -9,9 +9,9 @@ namespace TaskbarVisu.Modules;
 /// filent tout droit vers les bords. Chaque bande de fréquence fait naître ses étoiles à proportion de son énergie,
 /// de sa couleur (graves → début de la palette, aigus → fin), et elles brillent quand leur bande sonne.
 /// La vitesse suit le volume en douceur ; un vrai coup de grosse caisse (graves profonds seulement, pas la voix)
-/// donne un bond et étire les traînées, un coup de charleston une petite poussée. Sur un morceau puissant, la vitesse
-/// suit son relief : les creux ralentissent, les gros moments foncent à toute allure. Dans les cas extrêmes (une montée qui dépasse de loin la moyenne, avec des
-/// basses), distorsion de vitesse : traînées très longues, couleurs qui se séparent, anneaux qui partent du centre.
+/// donne un bond et étire les traînées, un coup de charleston une petite poussée. Super sonic : sur les pics de sonie
+/// tout en haut de l'échelle (au-delà de −1 LUFS), la vitesse s'emballe. Dans les cas extrêmes (une montée qui dépasse
+/// de loin la moyenne, avec des basses), distorsion de vitesse : traînées très longues, couleurs qui se séparent, anneaux qui partent du centre.
 /// </summary>
 internal sealed class StarfieldModule : VisualizerModule
 {
@@ -27,8 +27,8 @@ internal sealed class StarfieldModule : VisualizerModule
     private readonly Random _random = new();
     private float _speed, _kick, _kickSlowDb = -60, _sinceKick = 9;
     // Moyenne longue de départ : un niveau de musique typique, pour ne pas partir en distorsion au premier morceau.
-    private float _long = 0.12f, _drive, _time, _over, _power;
-    private float _fastDb = -60, _avgDb = -20, _hat, _hatSlowDb = -60;
+    private float _long = 0.12f, _drive, _time, _super, _music;
+    private float _hat, _hatSlowDb = -60;
 
     private readonly SKPaint _fill = new() { IsAntialias = false, Style = SKPaintStyle.Fill };
     private readonly SKPaint _trail = new() { IsAntialias = false, Style = SKPaintStyle.Stroke, StrokeCap = SKStrokeCap.Square };
@@ -68,17 +68,10 @@ internal sealed class StarfieldModule : VisualizerModule
         float target = quiet ? 0.05f : 0.25f + Math.Min(1f, energy * 4);
         _speed += (target - _speed) * (1 - (float)Math.Exp(-dt / (target > _speed ? 0.15 : 0.5)));
 
-        // Puissance du morceau (sonie perçue : rien sous −14 LUFS, à fond vers −3) : elle ne fait pas aller vite
-        // à elle seule, elle fixe jusqu'où la vitesse peut monter. La voix reste en dessous.
-        float power = quiet ? 0 : Math.Clamp(((float)audio.Loudness.Momentary + 14) / 11, 0, 1);
-        _power += (power - _power) * (1 - (float)Math.Exp(-dt / 1.0));
-
-        // Relief : le niveau de l'instant (en dB) face à la moyenne des dernières secondes du morceau.
-        // Les creux et les pauses ralentissent, les gros moments foncent.
-        float db = energy > 1e-5f ? 20 * MathF.Log10(energy) : -100;
-        _fastDb += (db - _fastDb) * (1 - (float)Math.Exp(-dt / (db > _fastDb ? 0.04 : 0.15)));
-        if (!quiet) _avgDb += (_fastDb - _avgDb) * (1 - (float)Math.Exp(-dt / 3));
-        float lift = Math.Clamp((_fastDb - _avgDb + 3) / 6, 0, 1);
+        float loudness = quiet ? -70 : (float)audio.Loudness.Momentary;
+        // Musique ou voix : une voix (vers −17 LUFS) reste à 0, un morceau (−10 LUFS et plus) à 1.
+        float music = Math.Clamp((loudness + 16) / 6, 0, 1);
+        _music += (music - _music) * (1 - (float)Math.Exp(-dt / 1.0));
 
         // Charleston : la bande la plus aiguë qui claque de quelques dB au-dessus de sa moyenne récente.
         float hatDb = _bandDb[Bands - 1];
@@ -87,9 +80,10 @@ internal sealed class StarfieldModule : VisualizerModule
         _hatSlowDb += (hatDb - _hatSlowDb) * (1 - (float)Math.Exp(-dt / 0.3));
         _hat *= (float)Math.Exp(-dt / 0.08);
 
-        // Surpuissance : puissance × relief, qui suit vite (monte en 0,08 s, retombe en 0,3 s).
-        float over = _power * _power * lift;
-        _over += (over - _over) * (1 - (float)Math.Exp(-dt / (over > _over ? 0.08 : 0.3)));
+        // Super sonic : seulement sur les pics de sonie tout en haut de l'échelle (à partir de −1 LUFS, à fond à 0).
+        // Même un master très fort n'y passe qu'à ses plus gros moments ; un morceau normal jamais.
+        float super = Math.Clamp(loudness + 1, 0, 1);
+        _super += (super - _super) * (1 - (float)Math.Exp(-dt / (super > _super ? 0.08 : 0.4)));
 
         // Distorsion de vitesse : seulement dans les cas extrêmes, quand le son dépasse de loin sa moyenne des
         // dernières secondes ET que les graves cognent (une montée de musique, pas quelqu'un qui parle fort).
@@ -101,8 +95,8 @@ internal sealed class StarfieldModule : VisualizerModule
         if (!quiet) _long += (energy - _long) * (1 - (float)Math.Exp(-dt / 4));
         _time += (float)dt;
 
-        // Les coups de grosse caisse et de charleston poussent d'autant plus fort que le morceau est puissant.
-        float speed = (_speed + 1.5f * _kick * (1 + _power) + 0.8f * _hat * _power + 1.5f * _drive + 4 * _over)
+        // Un coup de charleston donne une petite poussée (dans la musique seulement, pas sur les « s » d'une voix).
+        float speed = (_speed + 1.5f * _kick + 0.3f * _hat * _music + 1.5f * _drive + 5 * _super * _super)
             * (float)Opt("speed");
 
         // Naissances : chaque bande sème des étoiles selon son niveau, au loin, tout près de l'axe
@@ -110,7 +104,7 @@ internal sealed class StarfieldModule : VisualizerModule
         float density = OptF("density");
         for (int b = 0; b < Bands && !quiet; b++)
         {
-            _spawn[b] += (float)dt * density * _level[b] * _level[b] * (1 + 0.5f * _kick + 2 * _over);
+            _spawn[b] += (float)dt * density * _level[b] * _level[b] * (1 + 0.5f * _kick + 2 * _super);
             while (_spawn[b] >= 1 && _count < MaxStars)
             {
                 _spawn[b] -= 1;
@@ -164,9 +158,9 @@ internal sealed class StarfieldModule : VisualizerModule
         // Projection : le tunnel remplit la largeur ; l'écran étant plat, on écrase la hauteur.
         float fx = rect.Width * 0.5f * Near * 1.6f, fy = rect.Height * 0.5f * Near * 1.6f;
         bool trails = Flag("trails");
-        // Traînées : courtes au repos, étirées sur un coup ou en surpuissance, très longues dans la distorsion.
-        float warp = Math.Min(1, _kick + d + 0.6f * _over);
-        float stretch = 1.35f + 0.6f * warp + 0.8f * d + 0.6f * _over, factor = 2.5f + 3 * warp + 3 * d;
+        // Traînées : courtes au repos, étirées sur un coup ou en super sonic, très longues dans la distorsion.
+        float warp = Math.Min(1, _kick + d + 0.6f * _super);
+        float stretch = 1.35f + 0.6f * warp + 0.8f * d + 0.6f * _super, factor = 2.5f + 3 * warp + 3 * d;
         _trail.StrokeWidth = p;
 
         // Distorsion : anneaux pointillés qui naissent au centre et filent vers les bords.
@@ -193,7 +187,7 @@ internal sealed class StarfieldModule : VisualizerModule
             // Plus proche = plus claire et plus grosse ; une étoile brille aussi quand sa bande sonne.
             float closeness = Math.Clamp(1 - (z - Near) / 1.2f, 0, 1);
             // Les étoiles aiguës scintillent sur chaque coup de charleston.
-            float glow = _level[Math.Min(Bands - 1, (int)(_tone[i] * Bands))] + (_tone[i] > 0.75f ? _hat * _power : 0);
+            float glow = _level[Math.Min(Bands - 1, (int)(_tone[i] * Bands))] + (_tone[i] > 0.75f ? _hat * _music : 0);
             float tone = Math.Clamp(_tone[i] * 0.85f + 0.15f * glow, 0, 1);
             var color = t.Spectral(tone).WithAlpha((byte)Math.Clamp(25 + 180 * closeness * closeness + 50 * glow, 0, 255));
             if (trails)
