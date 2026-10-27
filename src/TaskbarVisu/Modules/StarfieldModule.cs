@@ -26,7 +26,7 @@ internal sealed class StarfieldModule : VisualizerModule
     private readonly Random _random = new();
     private float _speed, _kick, _bassSlow, _sinceKick = 9;
     // Moyenne longue de départ : un niveau de musique typique, pour ne pas partir en distorsion au premier morceau.
-    private float _long = 0.12f, _drive, _time;
+    private float _long = 0.12f, _drive, _time, _over;
 
     private readonly SKPaint _fill = new() { IsAntialias = false, Style = SKPaintStyle.Fill };
     private readonly SKPaint _trail = new() { IsAntialias = false, Style = SKPaintStyle.Stroke, StrokeCap = SKStrokeCap.Square };
@@ -65,6 +65,11 @@ internal sealed class StarfieldModule : VisualizerModule
         float target = quiet ? 0.05f : 0.25f + Math.Min(1f, energy * 4);
         _speed += (target - _speed) * (1 - (float)Math.Exp(-dt / (target > _speed ? 0.15 : 0.5)));
 
+        // Surpuissance : un son mixé à fond (sonie au-delà de −7 LUFS, à fond vers −2) fait exploser la vitesse.
+        // Un morceau normal reste en dessous, la voix très en dessous.
+        float over = quiet ? 0 : Math.Clamp(((float)audio.Loudness.Momentary + 7) / 5, 0, 1);
+        _over += (over - _over) * (1 - (float)Math.Exp(-dt / (over > _over ? 0.3 : 1.0)));
+
         // Distorsion de vitesse : seulement dans les cas extrêmes, quand le son dépasse de loin sa moyenne des
         // dernières secondes ET que les graves cognent (une montée de musique, pas quelqu'un qui parle fort).
         float surge = _long > 1e-4f ? energy / _long : 0;
@@ -75,13 +80,14 @@ internal sealed class StarfieldModule : VisualizerModule
         if (!quiet) _long += (energy - _long) * (1 - (float)Math.Exp(-dt / 4));
         _time += (float)dt;
 
-        float speed = (_speed + 1.5f * _kick + 1.5f * _drive) * (float)Opt("speed");
+        float speed = (_speed + 1.5f * _kick + 1.5f * _drive + 4 * _over * _over) * (float)Opt("speed");
 
-        // Naissances : chaque bande sème des étoiles selon son niveau, au loin, tout près de l'axe.
+        // Naissances : chaque bande sème des étoiles selon son niveau, au loin, tout près de l'axe
+        // (plus vite quand ça fonce, sinon les étoiles passent trop vite pour remplir le ciel).
         float density = OptF("density");
         for (int b = 0; b < Bands && !quiet; b++)
         {
-            _spawn[b] += (float)dt * density * _level[b] * _level[b] * (1 + 0.5f * _kick);
+            _spawn[b] += (float)dt * density * _level[b] * _level[b] * (1 + 0.5f * _kick + 2 * _over);
             while (_spawn[b] >= 1 && _count < MaxStars)
             {
                 _spawn[b] -= 1;
@@ -135,9 +141,9 @@ internal sealed class StarfieldModule : VisualizerModule
         // Projection : le tunnel remplit la largeur ; l'écran étant plat, on écrase la hauteur.
         float fx = rect.Width * 0.5f * Near * 1.6f, fy = rect.Height * 0.5f * Near * 1.6f;
         bool trails = Flag("trails");
-        // Traînées : courtes au repos, étirées sur un coup, très longues dans la distorsion.
-        float warp = Math.Min(1, _kick + d);
-        float stretch = 1.35f + 0.6f * warp + 0.8f * d, factor = 2.5f + 3 * warp + 3 * d;
+        // Traînées : courtes au repos, étirées sur un coup ou en surpuissance, très longues dans la distorsion.
+        float warp = Math.Min(1, _kick + d + 0.6f * _over);
+        float stretch = 1.35f + 0.6f * warp + 0.8f * d + 0.6f * _over, factor = 2.5f + 3 * warp + 3 * d;
         _trail.StrokeWidth = p;
 
         // Distorsion : anneaux pointillés qui naissent au centre et filent vers les bords.
