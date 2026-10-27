@@ -257,7 +257,7 @@ internal static class ModuleCatalog
                 Slider("density", "Densité d'étoiles", 60, 10, 200, 5),
                 Toggle("trails", "Traînées", true),
                 Toggle("warp", "Distorsion de vitesse", true,
-                    help: "Sur les passages les plus intenses, l'espace se déforme : le centre se creuse et les couleurs se séparent."),
+                    help: "Sur les montées les plus intenses : traînées très longues, couleurs qui se séparent, anneaux qui partent du centre."),
             },
             () => new StarfieldModule()),
 
@@ -273,9 +273,11 @@ internal static class ModuleCatalog
 
         new("ring", "Anneau",
             "Le spectre enroulé en cercle : il respire sur les basses, tourne du côté de la stéréo, et chaque temps fort laisse une onde.",
-            60, 30,
+            DefaultModuleWidth, 30,
             new[]
             {
+                Choice("style", "Style", 2,new[] { "Rayons", "Écho", "Orbite 3D" },
+                    help: "Rayons : le spectre en rayons autour du cercle. Écho : chaque instant laisse son contour, qui s'éloigne. Orbite 3D : l'anneau couché en perspective, sur toute la largeur."),
                 Slider("spin", "Rotation", 1, 0, 3, 0.1, "×"),
                 Toggle("stretch", "Étirer sur toute la largeur", false),
             },

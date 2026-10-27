@@ -112,6 +112,9 @@ internal sealed partial class RenderHost : IDisposable
         double.TryParse(Environment.GetEnvironmentVariable("TASKBARVISU_DUMP_SECONDS"), System.Globalization.NumberStyles.Float,
             System.Globalization.CultureInfo.InvariantCulture, out var s) ? Math.Clamp(s, 0.05, 60) : 5;
 
+    private static readonly bool DumpSequence = Environment.GetEnvironmentVariable("TASKBARVISU_DUMP_SEQ") == "1";
+    private int _dumpIndex;
+
     /// <summary>Diagnostic (--headless) : rendu en mémoire uniquement, aucune fenêtre affichée.</summary>
     public bool Headless { get; set; }
 
@@ -165,7 +168,7 @@ internal sealed partial class RenderHost : IDisposable
     private void Loop()
     {
         var clock = Stopwatch.StartNew();
-        double last = 0, nextCheck = 0, nextRaise = 0, nextFrame = 0, nextDump = 4;
+        double last = 0, nextCheck = 0, nextRaise = 0, nextFrame = 0, nextDump = DumpSequence ? 1 : 4;
 
         while (_running)
         {
@@ -682,6 +685,12 @@ internal sealed partial class RenderHost : IDisposable
 
     private void Dump(string directory)
     {
+        // Séquence d'images : seulement l'image (l'état complet, coûteux, une fois toutes les 40 images).
+        if (DumpSequence && _dumpIndex % 40 != 0)
+        {
+            SaveImages(directory, $"seq{_dumpIndex++:00000}-");
+            return;
+        }
         try
         {
             Directory.CreateDirectory(directory);
@@ -699,7 +708,8 @@ internal sealed partial class RenderHost : IDisposable
                 foreach (var item in zone.Items)
                     if (item.Module.Diagnostics is { } diag) lines.Add("  " + diag);
             }
-            SaveImages(directory, string.Empty);
+            // Variable TASKBARVISU_DUMP_SEQ : images numérotées (pour en faire une animation) au lieu d'écraser la dernière.
+            SaveImages(directory, DumpSequence ? $"seq{_dumpIndex++:00000}-" : string.Empty);
             if (_profileFrames > 0)
             {
                 lines.Add($"profil ({_profileFrames} images, ms et octets alloués moyens par image) — détection barre : {_tracker.LastDetectMs:0.0} ms");
