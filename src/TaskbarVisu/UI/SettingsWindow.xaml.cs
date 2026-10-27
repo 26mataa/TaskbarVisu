@@ -343,10 +343,53 @@ public partial class SettingsWindow : Window
         }
 
         Refresh();
+        BuildUpdateBox();
         // Un seul abonnement à la fois (l'onglet est reconstruit au changement de langue).
         if (_updateHandler is not null) _app.UpdateStateChanged -= _updateHandler;
-        _updateHandler = () => Dispatcher.BeginInvoke(Refresh);
+        _updateHandler = () => Dispatcher.BeginInvoke(() =>
+        {
+            Refresh();
+            BuildUpdateBox();
+        });
         _app.UpdateStateChanged += _updateHandler;
+    }
+
+    /// <summary>
+    /// Bas de la navigation, visible depuis toutes les pages : l'état des mises à jour et un bouton pour vérifier,
+    /// ou pour installer la nouvelle version dès qu'elle est trouvée.
+    /// </summary>
+    private void BuildUpdateBox()
+    {
+        var box = UpdateBox;
+        box.Children.Clear();
+        if (_app.UpdateStatus.Length > 0)
+            box.Children.Add(new TextBlock
+            {
+                Text = _app.UpdateStatus,
+                FontSize = 11,
+                Opacity = 0.7,
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(2, 0, 0, 6),
+            });
+        var update = _app.AvailableUpdate;
+        var label = new StackPanel { Orientation = Orientation.Horizontal };
+        var icon = Glyph(update is null ? "" : "", 14); // synchroniser, télécharger
+        icon.Margin = new Thickness(0, 0, 8, 0);
+        label.Children.Add(icon);
+        string text = update is null ? Loc.T("Vérifier les mises à jour")
+            : UpdateChecker.IsInstalled ? Loc.F("Installer la version {0}", update.Version)
+            : Loc.T("Ouvrir la page de téléchargement");
+        label.Children.Add(new TextBlock { Text = text, VerticalAlignment = VerticalAlignment.Center });
+        var button = new Button { Content = label, HorizontalAlignment = HorizontalAlignment.Stretch, HorizontalContentAlignment = HorizontalAlignment.Left };
+        // Le contenu mêle icône et texte : le nom dit aux lecteurs d'écran ce que fait le bouton.
+        System.Windows.Automation.AutomationProperties.SetName(button, text);
+        if (update is not null) button.Style = TryFindResource("AccentButtonStyle") as Style;
+        button.Click += async (_, _) =>
+        {
+            if (_app.AvailableUpdate is not null) await _app.InstallUpdateAsync();
+            else await _app.CheckForUpdatesAsync(manual: true);
+        };
+        box.Children.Add(button);
     }
 
     // ---------------------------------------------------------------- Apparence

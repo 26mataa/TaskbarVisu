@@ -108,6 +108,12 @@
                 </ScrollViewer>
             </TabItem>
 
+            <TabItem x:Name="TabGeneral">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel x:Name="GeneralPanel" Margin="20,18,28,24" />
+                </ScrollViewer>
+            </TabItem>
+
             <TabItem x:Name="TabAppearance">
                 <!-- Titre et aperçu en direct épinglés : chaque réglage plus bas s'y voit sans remonter. -->
                 <DockPanel>
@@ -129,13 +135,10 @@
                     <StackPanel x:Name="ModulesPanel" Margin="20,18,28,24" />
                 </ScrollViewer>
             </TabItem>
-
-            <TabItem x:Name="TabGeneral">
-                <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <StackPanel x:Name="GeneralPanel" Margin="20,18,28,24" />
-                </ScrollViewer>
-            </TabItem>
         </TabControl>
+
+        <!-- Bas de la navigation : où en sont les mises à jour, et le bouton pour vérifier ou installer. -->
+        <StackPanel x:Name="UpdateBox" Width="200" Margin="22,0,0,14" VerticalAlignment="Bottom" HorizontalAlignment="Left" />
 
         <!-- Nom de l'application au-dessus de la navigation. -->
         <StackPanel x:Name="AppHeader" Orientation="Horizontal" Margin="22,22,0,0" VerticalAlignment="Top"

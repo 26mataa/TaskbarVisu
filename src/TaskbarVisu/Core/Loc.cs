@@ -450,6 +450,7 @@ internal static class Loc
             new[] { "Vérifier les nouvelles versions (GitHub)", "Check for new versions (GitHub)", "Buscar nuevas versiones (GitHub)", "Nach neuen Versionen suchen (GitHub)" },
             new[] { "Version installée : {0}", "Installed version: {0}", "Versión instalada: {0}", "Installierte Version: {0}" },
             new[] { "Vérifier maintenant", "Check now", "Comprobar ahora", "Jetzt prüfen" },
+            new[] { "Vérifier les mises à jour", "Check for updates", "Buscar actualizaciones", "Nach Updates suchen" },
             new[] { "Installer la version {0}", "Install version {0}", "Instalar la versión {0}", "Version {0} installieren" },
             new[] { "Ouvrir la page de téléchargement", "Open the download page", "Abrir la página de descarga", "Download-Seite öffnen" },
             new[] { "Ignorer cette version", "Skip this version", "Omitir esta versión", "Diese Version überspringen" },
